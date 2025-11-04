@@ -698,8 +698,11 @@ function App() {
   const formatLimitPrice = (value) => {
     if (!value || value === '') return ''
     
+    // If value is already a number (from state), convert to string
+    const valueStr = typeof value === 'number' ? value.toString() : value
+    
     // Remove all non-numeric characters except decimal point
-    const cleaned = value.replace(/[^0-9.]/g, '')
+    const cleaned = valueStr.replace(/[^0-9.]/g, '')
     
     // Handle empty or just dot
     if (cleaned === '' || cleaned === '.') return cleaned
@@ -852,7 +855,9 @@ function App() {
                   value={formatLimitPrice(limitPrice)}
                   onChange={(e) => {
                     const rawValue = e.target.value
-                    // Remove tudo exceto números e ponto decimal
+                    
+                    // Remove formatação (separadores de milhares) - pega apenas números e ponto decimal
+                    // Primeiro remove tudo exceto números e pontos
                     let cleanedValue = rawValue.replace(/[^0-9.]/g, '')
                     
                     // Encontrar o último ponto (separador decimal)
@@ -868,6 +873,7 @@ function App() {
                     
                     // Tem ponto decimal - separar parte inteira e decimal
                     // O último ponto é sempre o separador decimal
+                    // Tudo antes do último ponto é parte inteira (pode ter pontos de milhares formatados)
                     const integerPartRaw = cleanedValue.substring(0, lastDotIndex)
                     const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira (separadores de milhares)
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
