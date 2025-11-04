@@ -616,20 +616,7 @@ function App() {
           return
         }
         
-        // Validate price is within 80% of reference price
-        if (midPrice && midPrice > 0) {
-          const minPrice = midPrice * 0.2
-          const maxPrice = midPrice * 1.8
-          
-          if (limitPriceNum < minPrice || limitPriceNum > maxPrice) {
-            setError(
-              `Preço inválido! Deve estar entre $${formatPrice(minPrice)} e $${formatPrice(maxPrice)} ` +
-              `(preço atual: $${formatPrice(midPrice)})`
-            )
-            setLoading(false)
-            return
-          }
-        }
+        // Price validation will be done by backend - no frontend validation
       }
       
       // Calculate size from USD quantity
@@ -892,60 +879,7 @@ function App() {
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
-                    // Use limitPrice (raw value) - remove formatting to get numeric value
-                    const rawValue = limitPrice.replace(/[^0-9.]/g, '')
-                    if (!rawValue || rawValue === '' || rawValue === '.') {
-                      setPriceError(null)
-                      setLimitPrice('')
-                      return
-                    }
-                    
-                    // Find the last dot - that's the decimal separator
-                    const lastDotIndex = rawValue.lastIndexOf('.')
-                    let numericValue
-                    
-                    if (lastDotIndex === -1) {
-                      // No decimal point - remove all dots (thousand separators)
-                      numericValue = rawValue.replace(/\./g, '')
-                    } else {
-                      // Has decimal point - last dot is decimal separator
-                      const integerPartRaw = rawValue.substring(0, lastDotIndex)
-                      const integerPart = integerPartRaw.replace(/\./g, '') // Remove thousand separators
-                      const decimalPart = rawValue.substring(lastDotIndex + 1)
-                      numericValue = `${integerPart}.${decimalPart}`
-                    }
-                    
-                    const num = parseFloat(numericValue)
-                    if (isNaN(num) || num <= 0) {
-                      setPriceError('Digite um preço válido maior que zero')
-                      setLimitPrice('')
-                      return
-                    }
-                    
-                    // Round to 3 decimal places for storage
-                    const rounded = Math.round(num * 1000) / 1000
-                    const roundedStr = rounded.toFixed(3)
-                    
-                    // Validate price is within 80% of reference price (20% to 180% of mid price)
-                    // Hyperliquid requires price to be within 80% of reference price
-                    if (midPrice && midPrice > 0) {
-                      const minPrice = midPrice * 0.2  // 20% of reference
-                      const maxPrice = midPrice * 1.8  // 180% of reference
-                      
-                      if (rounded < minPrice || rounded > maxPrice) {
-                        setPriceError(
-                          `Preço deve estar entre ${formatPrice(minPrice)} e ${formatPrice(maxPrice)} ` +
-                          `(preço atual: ${formatPrice(midPrice)})`
-                        )
-                        // DON'T auto-insert suggested price - just show error
-                        // User can manually correct the value
-                        return
-                      }
-                    }
-                    
-                    // Format to 3 decimal places and store raw (without thousand separators)
-                    // This ensures the value is stored correctly for next edit
-                    setLimitPrice(roundedStr)
+                    // Just clear any previous errors - validation will be done by backend
                     setPriceError(null)
                   }}
                   className={`w-full bg-gray-900 border rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 ${
