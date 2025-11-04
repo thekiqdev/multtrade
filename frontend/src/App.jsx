@@ -754,17 +754,20 @@ function App() {
     const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // Don't format integer part during typing - just return raw value
-    // Formatting causes cursor issues and field freezing
-    // Formatting will be applied on blur only
+    // Format integer part with thousand separator if 4+ digits
+    // This ensures values from Mid button (like 99355) are displayed correctly as 99.355
+    let formattedInteger = integerPart
+    if (integerPart.length >= 4) {
+      formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    }
     
     // Allow decimal part to continue - don't limit during typing
     // Only limit to 3 digits for display (user can type more)
     // This allows continuous typing: 11.111 → 11.1111 → 11.11111
     const limitedDecimal = decimalPart.length > 3 ? decimalPart.slice(0, 3) : decimalPart
     
-    // Combine - return raw integer part without formatting
-    return `${integerPart}.${limitedDecimal}`
+    // Combine - return formatted integer part with decimal
+    return `${formattedInteger}.${limitedDecimal}`
   }
 
   const formatNumber = (num) => {
