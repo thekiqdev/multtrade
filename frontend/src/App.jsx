@@ -20,10 +20,12 @@ function App() {
   const [liquidation, setLiquidation] = useState(0)
   const [maintMargin, setMaintMargin] = useState(0)
   const [limitPrice, setLimitPrice] = useState('')
+  const [priceError, setPriceError] = useState(null)
   
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [fetchingPrice, setFetchingPrice] = useState(false)
 
   // Fetch market price (REST or WebSocket)
   useEffect(() => {
@@ -44,12 +46,19 @@ function App() {
       try {
         // Check current config
         const configResponse = await axios.get(getApiUrl('/api/config'))
+        const priceSource = configResponse.data.price_source || 'rest'
+        
         // Check localStorage for individual switches
         const storedRest = localStorage.getItem('rest_enabled')
         const storedWebsocket = localStorage.getItem('websocket_enabled')
         const restEnabled = storedRest !== null ? storedRest === 'true' : (configResponse.data.rest_enabled !== false)
         const websocketEnabled = storedWebsocket !== null ? storedWebsocket === 'true' : (configResponse.data.websocket_enabled === true)
         
+        // Only log once
+        if (!window._priceSourceSetupLogged) {
+          console.log(`Setting up price source: REST=${restEnabled}, WebSocket=${websocketEnabled}`)
+          window._priceSourceSetupLogged = true
+        }
         
         let websocketFailed = false
         
@@ -62,11 +71,17 @@ function App() {
               wsConnection = new WebSocket(wsUrl)
               
               wsConnection.onopen = () => {
+                // Only log once per connection
+                if (!wsConnection._connectedLogged) {
+                  console.log('✅ WebSocket connected for price updates - PRIORITY MODE ACTIVE')
+                  wsConnection._connectedLogged = true
+                }
                 reconnectAttempts = 0 // Reset on successful connection
                 websocketFailed = false // Reset failure flag
                 
                 // Stop REST polling immediately - WebSocket has priority
                 if (priceInterval) {
+                  console.log('🛑 Stopping REST polling - WebSocket has priority and is connected')
                   clearInterval(priceInterval)
                   priceInterval = null
                 }
@@ -94,6 +109,13 @@ function App() {
                           setSpread(midPrice * 0.001) // Fallback
                         }
                         
+                        console.log('📊 Initial price loaded from cache:', {
+                          symbol: symbol,
+                          mid: midPrice,
+                          askPrice_field: midPrice, // Using mid_price for askPrice field
+                          bid: cacheData.bid_price,
+                          source: cacheData.source || 'cache'
+                        })
                         return // Don't fetch from REST if cache worked
                       }
                     }
@@ -119,10 +141,17 @@ function App() {
                             setSpread(midPrice * 0.001) // Fallback
                           }
                           
+                          console.log('📊 Initial price loaded from REST:', {
+                            symbol: symbol,
+                            mid_price: midPrice,
+                            askPrice_field: midPrice, // Using mid_price for askPrice field
+                            source: 'rest'
+                          })
                         }
                       })
                   })
                   .catch(err => {
+                    console.error('Error fetching initial price:', err)
                   })
               }
               
@@ -135,9 +164,11 @@ function App() {
                     const price = parseFloat(data.price)
                     
                     if (isNaN(price) || price <= 0) {
+                      console.error('❌ Invalid price from WebSocket:', price)
                       return
                     }
                     
+                    console.log('✅ Processing price_update for', symbol, ':', price, 'Cache data:', data.cache_data)
                     
                     // ALWAYS use cache_data if available (source of truth)
                     const cacheData = data.cache_data
@@ -153,6 +184,7 @@ function App() {
                       
                       // Use MID_PRICE for askPrice field (not ask_price)
                       setAskPrice(newMidPrice)
+                      console.log('💰 AskPrice atualizado do cache (MID_PRICE):', newMidPrice)
                       
                       // Update bid_price ONLY if exists in cache (real value)
                       if (newBidPrice !== null && newBidPrice > 0) {
@@ -164,6 +196,13 @@ function App() {
                         setSpread(newSpread)
                       }
                       
+                      console.log('📊 Preços atualizados do cache (valores reais):', {
+                        mid: newMidPrice,
+                        askPrice_field: newMidPrice, // Using mid_price for askPrice field
+                        bid: newBidPrice,
+                        spread: newSpread,
+                        source: cacheData.source || 'websocket'
+                      })
                     } else {
                       // If no cache_data, fetch from cache API immediately
                       axios.get(getApiUrl(`/api/cache/prices/${symbol}`))
@@ -175,31 +214,38 @@ function App() {
                               setMidPrice(midPrice)
                               // Use MID_PRICE for askPrice field
                               setAskPrice(midPrice)
+                              console.log('💰 AskPrice atualizado via API cache (MID_PRICE):', midPrice)
                             }
                             if (cacheData.bid_price) setBidPrice(parseFloat(cacheData.bid_price))
                             if (cacheData.spread) setSpread(parseFloat(cacheData.spread))
                           }
                         })
-                        .catch(() => {})
+                        .catch(err => console.error('Error fetching cache after WebSocket update:', err))
                     }
                   }
                 } catch (err) {
+                  console.error('Error parsing WebSocket message:', err)
                 }
               }
               
               wsConnection.onerror = (error) => {
+                console.error('WebSocket error:', error)
                 websocketFailed = true
+                // Fallback to REST if WebSocket fails and REST is enabled
                 const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
                 if (currentRestEnabled && restEnabled && !priceInterval) {
+                  console.log('⚠️ WebSocket error, falling back to REST API')
                   setupRestPriceSource()
                 }
               }
               
               wsConnection.onclose = (event) => {
+                console.log('WebSocket disconnected', event.code, event.reason)
                 
                 // If WebSocket closes, try to reconnect first (WebSocket has priority)
                 if (websocketEnabled && reconnectAttempts < maxReconnectAttempts) {
                   reconnectAttempts++
+                  console.log(`🔄 Reconnecting WebSocket (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`)
                   reconnectTimeout = setTimeout(() => {
                     connectWebSocket()
                   }, 2000 * reconnectAttempts) // Exponential backoff
@@ -207,21 +253,26 @@ function App() {
                   // Only fallback to REST if max reconnection attempts reached
                   const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
                   if (currentRestEnabled && restEnabled && reconnectAttempts >= maxReconnectAttempts) {
+                    console.log('⚠️ WebSocket max reconnection attempts reached, falling back to REST')
                     websocketFailed = true
                     if (!priceInterval) {
                       setupRestPriceSource()
                     }
                   } else if (currentRestEnabled && restEnabled && !priceInterval) {
                     // Fallback to REST if WebSocket fails (only if REST is enabled)
+                    console.log('⚠️ WebSocket failed, falling back to REST API')
                     websocketFailed = true
                     setupRestPriceSource()
                   }
                 }
               }
             } catch (err) {
+              console.error('Error creating WebSocket connection:', err)
               websocketFailed = true
+              // Fallback to REST if WebSocket fails and REST is enabled
               const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
               if (currentRestEnabled && restEnabled && !priceInterval) {
+                console.log('⚠️ WebSocket connection failed, falling back to REST API')
                 setupRestPriceSource()
               }
             }
@@ -238,9 +289,11 @@ function App() {
           if (restActuallyEnabled) {
             setupRestPriceSource()
           } else {
+            console.log('⚠️ REST is disabled, not setting up REST price source')
           }
         }
       } catch (err) {
+        console.error('Error setting up price source:', err)
         // Only fallback to REST if explicitly configured
         const storedSource = localStorage.getItem('price_source')
         if (!storedSource || storedSource === 'rest') {
@@ -256,6 +309,7 @@ function App() {
       
       // Don't setup REST if it's disabled
       if (!restActuallyEnabled) {
+        console.log('⚠️ REST is disabled, not setting up REST price source')
         return
       }
       
@@ -272,6 +326,7 @@ function App() {
         // Double-check REST is still enabled
         const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
         if (!currentRestEnabled) {
+          console.log('⚠️ REST was disabled, stopping REST price updates')
           if (priceInterval) {
             clearInterval(priceInterval)
             priceInterval = null
@@ -314,6 +369,7 @@ function App() {
                 setSpread(parseFloat(cacheData.ask_price) - parseFloat(cacheData.bid_price))
               }
               
+              console.log('📊 Market data updated from cache:', {
                 bid: cacheData.bid_price,
                 askPrice_field: cacheData.mid_price, // Using mid_price for askPrice field
                 mid: cacheData.mid_price,
@@ -345,11 +401,20 @@ function App() {
                   setSpread(parseFloat(response.data.ask_price) - parseFloat(response.data.bid_price))
                 }
                 
+                console.log('📊 Market data updated via REST (fallback):', {
+                  bid: response.data.bid_price,
+                  askPrice_field: response.data.mid_price, // Using mid_price for askPrice field
+                  mid: response.data.mid_price,
+                  spread: response.data.spread,
+                  source: 'rest'
+                })
               }
             }
           }
         } catch (err) {
+          console.error('Error fetching price from cache/REST:', err)
         } finally {
+          setFetchingPrice(false)
         }
       }
       
@@ -365,12 +430,14 @@ function App() {
       
       // Check if WebSocket was just enabled
       if (storedWebsocket === 'true') {
+        console.log('🔄 WebSocket enabled in Settings, reconnecting...')
         // Re-run setup to connect WebSocket
         isSettingUp = false // Reset flag to allow re-setup
         setupPriceSource()
       } else if (storedWebsocket === 'false') {
         // WebSocket was disabled, close connection
         if (wsConnection) {
+          console.log('🛑 WebSocket disabled in Settings, closing connection...')
           wsConnection.close()
           wsConnection = null
         }
@@ -408,6 +475,7 @@ function App() {
               setAskPrice(prev => {
                 // Always update, even if value is the same (forces re-render)
                 if (prev !== newMidPrice) {
+                  console.log('💰 AskPrice atualizado do cache (MID_PRICE) - REST fallback:', prev?.toFixed(2), '→', newMidPrice.toFixed(2))
                   return newMidPrice
                 }
                 // Even if same, return new value to force re-render
@@ -445,12 +513,15 @@ function App() {
         priceInterval = null
       }
       if (wsConnection) {
+        wsConnection._connectedLogged = false // Reset log flag
         wsConnection.close()
         wsConnection = null
       }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout)
       }
+      // Reset global log flag when symbol changes
+      window._priceSourceSetupLogged = false
     }
   }, [symbol])
 
@@ -532,9 +603,21 @@ function App() {
           return
         }
       } catch (statusErr) {
+        console.warn('Não foi possível verificar o status:', statusErr)
         // Continua mesmo se não conseguir verificar o status
       }
 
+      // Validate limit price if limit order
+      if (orderType === 'limit') {
+        const limitPriceNum = parseFloat(limitPrice)
+        if (!limitPrice || isNaN(limitPriceNum) || limitPriceNum <= 0) {
+          setError('Digite um preço válido para ordem limit')
+          setLoading(false)
+          return
+        }
+        
+        // Price validation will be done by backend - no frontend validation
+      }
       
       // Calculate size from USD quantity
       const size = askPrice ? parseFloat(quantityUsd) / askPrice : parseFloat(quantityUsd) / 100000
@@ -580,10 +663,18 @@ function App() {
               if (midPrice && midPrice > 0 && parsedPrice < midPrice * 0.1) {
                 // Re-interpret as all thousand separators
                 parsedPrice = parseFloat(cleaned.replace(/\./g, ''))
+                console.log('🔄 Re-interpreted as thousand separators (price too small)')
               }
             }
           }
           
+          console.log('🔍 Price parsing result:', {
+            original: limitPrice,
+            cleaned: cleaned,
+            parsed: parsedPrice,
+            midPrice: midPrice,
+            ratio: midPrice ? (parsedPrice / midPrice) : null
+          })
           
           if (isNaN(parsedPrice) || parsedPrice <= 0) {
             setError('Preço inválido. Verifique o valor digitado.')
@@ -835,10 +926,20 @@ function App() {
                     // Just clear any previous errors - validation will be done by backend
                     setPriceError(null)
                   }}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className={`w-full bg-gray-900 border rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 ${
+                    priceError 
+                      ? 'border-orange-500 focus:ring-orange-500' 
+                      : 'border-gray-700 focus:ring-blue-500'
+                  }`}
                   placeholder={askPrice ? formatPrice(askPrice) : '100.789'}
                 />
               </div>
+              {priceError && (
+                <div className="mt-1 flex items-start gap-2 text-xs">
+                  <span className="text-orange-400">⚠</span>
+                  <span className="text-orange-300">{priceError}</span>
+                </div>
+              )}
               <p className="text-xs text-gray-500 mt-1">
                 O preço será validado pelo backend ao enviar a ordem
               </p>
