@@ -1233,7 +1233,7 @@ async def create_order(order: OrderRequestModel):
             size = float(size_str_final)
             logger.info(f"Final size before sending: {size} (rounded to {sz_decimals_final} decimals)")
         
-        # Final validation: ensure price is valid before sending
+        # Final validation: ensure price is valid and properly formatted before sending
         if price is None or price <= 0:
             error_msg = f"Invalid price for order: {price}. Price must be a positive number."
             logger.error(f"❌ {error_msg}")
@@ -1241,6 +1241,20 @@ async def create_order(order: OrderRequestModel):
             raise HTTPException(
                 status_code=400,
                 detail=error_msg
+            )
+        
+        # Ensure price is properly formatted as float with exactly 2 decimal places
+        # This prevents "Order has invalid price" errors from Hyperliquid API
+        try:
+            price = float(price)
+            price = round(price, 2)
+            price = float(f"{price:.2f}")  # Ensure exactly 2 decimal places
+            logger.info(f"🔧 Final price formatting: {price} (type: {type(price).__name__})")
+        except (ValueError, TypeError) as e:
+            logger.error(f"❌ Error formatting price before sending: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid price format: {price}. Error: {str(e)}"
             )
         
         # Ensure size is valid
