@@ -1102,16 +1102,21 @@ async def create_order(order: OrderRequestModel):
                 # Hyperliquid requires: price cannot be more than 80% away from reference
                 try:
                     market_data = info_client.all_mids() if info_client else None
-                    meta = info_client.meta() if info_client else None
-                    if meta and market_data:
-                        asset_index = None
-                        for i, asset in enumerate(meta.get("universe", [])):
-                            if asset["name"] == order.symbol:
-                                asset_index = i
-                                break
-                        if asset_index is not None and asset_index < len(market_data):
-                            reference_price = market_data[asset_index]
-                            if reference_price and reference_price > 0:
+                    if market_data and asset_index is not None:
+                        # Handle both dict and list responses
+                        if isinstance(market_data, dict):
+                            # Try to get reference price by asset_index
+                            market_list = list(market_data.values()) if market_data else []
+                            if asset_index < len(market_list):
+                                reference_price = float(market_list[asset_index])
+                            else:
+                                reference_price = None
+                        elif isinstance(market_data, list) and asset_index < len(market_data):
+                            reference_price = float(market_data[asset_index])
+                        else:
+                            reference_price = None
+                        
+                        if reference_price and reference_price > 0:
                                 min_price = reference_price * 0.2  # 20% of reference
                                 max_price = reference_price * 1.8  # 180% of reference
                                 
@@ -1138,15 +1143,14 @@ async def create_order(order: OrderRequestModel):
                 # If no price provided for limit order, get current market price
                 try:
                     market_data = info_client.all_mids() if info_client else None
-                    meta = info_client.meta() if info_client else None
-                    if meta and market_data:
-                        asset_index = None
-                        for i, asset in enumerate(meta.get("universe", [])):
-                            if asset["name"] == order.symbol:
-                                asset_index = i
-                                break
-                        if asset_index is not None and asset_index < len(market_data):
-                            price = market_data[asset_index]
+                    if market_data and asset_index is not None:
+                        # Handle both dict and list responses
+                        if isinstance(market_data, dict):
+                            market_list = list(market_data.values()) if market_data else []
+                            if asset_index < len(market_list):
+                                price = float(market_list[asset_index])
+                        elif isinstance(market_data, list) and asset_index < len(market_data):
+                            price = float(market_data[asset_index])
                 except Exception as e:
                     print(f"Warning: Could not get market price: {e}")
         
