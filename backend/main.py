@@ -1312,8 +1312,17 @@ async def create_order(order: OrderRequestModel):
                 
                 # Convert to string for SDK (SDK expects string for limit_px)
                 # aggressive_price is guaranteed to be float here, so formatting is safe
-                price_str = f"{float(aggressive_price):.2f}"
-                logger.info(f"Sending order with price_str: {price_str}")
+                try:
+                    # Double-check it's a float
+                    price_float = float(aggressive_price)
+                    price_str = f"{price_float:.2f}"
+                    logger.info(f"Sending order with price_str: {price_str}")
+                except (ValueError, TypeError) as format_err:
+                    # Log the actual value and type for debugging
+                    price_repr = repr(aggressive_price)
+                    price_type = str(type(aggressive_price))
+                    logger.error(f"Format error - price: {price_repr}, type: {price_type}, error: {format_err}")
+                    raise Exception(f"Could not format aggressive_price: {price_repr} (type: {price_type}) - {format_err}")
                 
                 # Use IOC (Immediate or Cancel) limit order as market order
                 result = exchange.order(
