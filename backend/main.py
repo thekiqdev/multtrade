@@ -1220,13 +1220,14 @@ async def create_order(order: OrderRequestModel):
                                     raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
                                 
                                 if market_price > 0:
-                                    aggressive_price = float(market_price) * 1.05  # 5% above to ensure execution
-                                    # Ensure aggressive_price is actually a float
-                                    aggressive_price = float(aggressive_price)
+                                    # Calculate aggressive price and ensure it's float
+                                    calculated_price = float(market_price) * 1.05  # 5% above to ensure execution
+                                    aggressive_price = float(calculated_price)
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                raise Exception(f"Could not convert market price to float: {e}")
+                                error_detail = str(e) if e else "Unknown error"
+                                raise Exception(f"Could not convert market price to float: {error_detail}")
                         else:
                             raise Exception("No market price available in cache")
                     else:
@@ -1245,13 +1246,14 @@ async def create_order(order: OrderRequestModel):
                                     raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
                                 
                                 if market_price > 0:
-                                    aggressive_price = float(market_price) * 0.95  # 5% below to ensure execution
-                                    # Ensure aggressive_price is actually a float
-                                    aggressive_price = float(aggressive_price)
+                                    # Calculate aggressive price and ensure it's float
+                                    calculated_price = float(market_price) * 0.95  # 5% below to ensure execution
+                                    aggressive_price = float(calculated_price)
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                raise Exception(f"Could not convert market price to float: {e}")
+                                error_detail = str(e) if e else "Unknown error"
+                                raise Exception(f"Could not convert market price to float: {error_detail}")
                         else:
                             raise Exception("No market price available in cache")
                 else:
