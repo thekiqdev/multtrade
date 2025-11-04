@@ -1017,7 +1017,8 @@ async def create_order(order: OrderRequestModel):
         # Build order type
         if order.order_type.lower() == "market":
             order_type = {"market": {}}
-            price = None
+            # For market orders, price should be 0, not None (to avoid format string errors)
+            price = 0
         else:
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel
             # For limit orders, validate and round price to tick size
