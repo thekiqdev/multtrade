@@ -1299,14 +1299,18 @@ async def create_order(order: OrderRequestModel):
                 except (ValueError, TypeError) as e:
                     raise Exception(f"aggressive_price is not a valid number: {aggressive_price} (type: {type(aggressive_price)})")
                 
-                # Round to 2 decimal places
-                aggressive_price = round(float(aggressive_price), 2)
+                # Round to 2 decimal places - ensure it's float first
+                aggressive_price = float(aggressive_price)
+                aggressive_price = round(aggressive_price, 2)
+                aggressive_price = float(aggressive_price)  # Ensure still float after round
                 
-                # Safe logging
-                logger.info(f"Using aggressive price for market order: {float(aggressive_price)}")
+                # Safe logging - aggressive_price is guaranteed float here
+                price_for_log = float(aggressive_price)
+                logger.info(f"Using aggressive price for market order: {price_for_log}")
                 
                 # Convert to string for SDK (SDK expects string for limit_px)
-                price_str = f"{aggressive_price:.2f}"
+                # aggressive_price is guaranteed to be float here, so formatting is safe
+                price_str = f"{float(aggressive_price):.2f}"
                 logger.info(f"Sending order with price_str: {price_str}")
                 
                 # Use IOC (Immediate or Cancel) limit order as market order
