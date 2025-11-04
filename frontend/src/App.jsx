@@ -971,29 +971,15 @@ function App() {
                   onClick={() => {
                     if (askPrice && askPrice > 0) {
                       // Use the current askPrice (mid_price) as limit price
-                      // Use the exact same value that's being displayed in BTC field
-                      // Round to 3 decimal places to match the format
+                      // This is the raw value (e.g., 99898.0)
                       const num = parseFloat(askPrice)
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places (ignore any extra decimals)
-                        // This ensures the value matches what's shown in BTC field
                         const rounded = Math.round(num * 1000) / 1000
-                        // Store as raw value with exactly 3 decimal places
+                        // Store as raw value with exactly 3 decimal places (no formatting)
+                        // The formatLimitPrice function will format it for display
                         const rawValue = rounded.toFixed(3)
-                        
-                        // Format the value for immediate display (same format as BTC field)
-                        // Format with thousand separator and 3 decimals
-                        const priceStr = rawValue
-                        const parts = priceStr.split('.')
-                        const integerPart = parts[0]
-                        const decimalPart = parts[1] || '000'
-                        
-                        // Format integer with thousand separator (same as BTC field)
-                        const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-                        const formattedValue = `${formattedInteger}.${decimalPart}`
-                        
-                        // Store formatted value so it displays correctly
-                        setLimitPrice(formattedValue)
+                        setLimitPrice(rawValue)
                         setPriceError(null)
                       }
                     }
