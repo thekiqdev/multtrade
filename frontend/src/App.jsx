@@ -854,20 +854,22 @@ function App() {
                     
                     if (lastDotIndex === -1) {
                       // Sem ponto decimal - apenas números (armazena raw, sem formatação)
+                      // Permite digitação contínua: 111 → 1111 → 11111 → 111111
                       setPriceError(null)
                       setLimitPrice(cleanedValue)
                       return
                     }
                     
-                    // Separar parte inteira e decimal
+                    // Tem ponto decimal - separar parte inteira e decimal
                     const integerPartRaw = cleanedValue.substring(0, lastDotIndex)
-                    const integerPart = integerPartRaw.replace(/\./g, '') // Remove pontos da parte inteira
+                    const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira (separadores de milhares)
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
                     
                     // Limitar a 3 casas decimais
                     const limitedDecimal = decimalPart.slice(0, 3)
                     
                     // Combinar - mantém valor raw sem formatação de milhares
+                    // Exemplo: 111111.789 → armazena como "111111.789" (sem pontos de milhares)
                     const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
                     
                     setPriceError(null)
