@@ -37,7 +37,13 @@ app = FastAPI()
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"],  # React dev servers
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "https://multtrade.vercel.app",
+        "https://*.vercel.app"
+    ],  # React dev servers + Vercel
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

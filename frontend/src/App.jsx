@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { getApiUrl, getWsUrl } from './config'
 
 function App() {
   const [orderType, setOrderType] = useState('market') // 'market' or 'limit'
@@ -44,7 +45,7 @@ function App() {
       
       try {
         // Check current config
-        const configResponse = await axios.get('http://localhost:8000/api/config')
+        const configResponse = await axios.get(getApiUrl('/api/config'))
         const priceSource = configResponse.data.price_source || 'rest'
         
         // Check localStorage for individual switches
@@ -63,7 +64,7 @@ function App() {
         
         // PRIORITY 1: WebSocket (if enabled)
         if (websocketEnabled) {
-          const wsUrl = 'ws://localhost:8000/ws/price'
+          const wsUrl = getWsUrl('/ws/price')
           
           const connectWebSocket = () => {
             try {
@@ -79,7 +80,7 @@ function App() {
                 websocketFailed = false // Reset failure flag
                 
                 // Always get initial price from cache (source of truth)
-                axios.get(`http://localhost:8000/api/cache/prices/${symbol}`)
+                axios.get(getApiUrl(`/api/cache/prices/${symbol}`))
                   .then(response => {
                     if (response.data && response.data.success && response.data.data) {
                       const cacheData = response.data.data
@@ -113,7 +114,7 @@ function App() {
                     }
                     
                     // Fallback: fetch from REST if cache unavailable
-                    return axios.get(`http://localhost:8000/api/market/${symbol}`)
+                    return axios.get(getApiUrl(`/api/market/${symbol}`))
                       .then(response => {
                         if (response.data && response.data.mid_price) {
                           const midPrice = parseFloat(response.data.mid_price)
@@ -197,7 +198,7 @@ function App() {
                       })
                     } else {
                       // If no cache_data, fetch from cache API immediately
-                      axios.get(`http://localhost:8000/api/cache/prices/${symbol}`)
+                      axios.get(getApiUrl(`/api/cache/prices/${symbol}`))
                         .then(response => {
                           if (response.data && response.data.success && response.data.data) {
                             const cacheData = response.data.data
@@ -331,7 +332,7 @@ function App() {
         setFetchingPrice(true)
         try {
           // ALWAYS use cache first (faster and has latest data)
-          const cacheResponse = await axios.get(`http://localhost:8000/api/cache/prices/${symbol}`)
+          const cacheResponse = await axios.get(getApiUrl(`/api/cache/prices/${symbol}`))
           
           if (cacheResponse.data && cacheResponse.data.success && cacheResponse.data.data) {
             const cacheData = cacheResponse.data.data
@@ -368,7 +369,7 @@ function App() {
             }
           } else {
             // Fallback to REST API if cache is empty
-            const response = await axios.get(`http://localhost:8000/api/market/${symbol}`)
+            const response = await axios.get(getApiUrl(`/api/market/${symbol}`))
             if (response.data) {
               if (!websocketActive || websocketFailed) {
                 if (response.data.mid_price) {
@@ -537,7 +538,7 @@ function App() {
     try {
       // Verificar status do backend antes de enviar
       try {
-        const statusResponse = await axios.get('http://localhost:8000/api/status')
+        const statusResponse = await axios.get(getApiUrl('/api/status'))
         if (!statusResponse.data.exchange_initialized) {
           const issues = statusResponse.data.issues || []
           let errorMsg = 'Exchange client não inicializado.\n\n'
@@ -597,7 +598,7 @@ function App() {
         stoploss: stoploss ? parseFloat(stoploss) : null
       }
 
-      const response = await axios.post('http://localhost:8000/api/order', orderData)
+      const response = await axios.post(getApiUrl('/api/order'), orderData)
       setResult(response.data)
     } catch (err) {
       let errorMsg = err.response?.data?.detail || err.message || 'Erro ao enviar ordem'
@@ -605,7 +606,7 @@ function App() {
       // Se o erro menciona credenciais, adicionar mais detalhes
       if (errorMsg.includes('credentials') || errorMsg.includes('SECRET_KEY') || errorMsg.includes('ACCOUNT_ADDRESS')) {
         errorMsg += '\n\nVerifique o console do backend para mais detalhes.'
-        errorMsg += '\nAcesse: http://localhost:8000/api/status para ver o status completo.'
+        errorMsg += `\nAcesse: ${getApiUrl('/api/status')} para ver o status completo.`
       }
       
       setError(errorMsg)
@@ -1061,7 +1062,7 @@ function App() {
             <h3 className="text-red-400 font-semibold mb-2">Erro ao enviar ordem</h3>
             <pre className="text-sm text-red-300 whitespace-pre-wrap font-mono">{error}</pre>
             <div className="mt-3 pt-3 border-t border-red-700">
-              <p className="text-xs text-red-400">Dica: Acesse <a href="http://localhost:8000/api/status" target="_blank" className="underline">http://localhost:8000/api/status</a> para verificar o status das credenciais</p>
+              <p className="text-xs text-red-400">Dica: Acesse <a href={getApiUrl('/api/status')} target="_blank" className="underline">{getApiUrl('/api/status')}</a> para verificar o status das credenciais</p>
             </div>
           </div>
         )}

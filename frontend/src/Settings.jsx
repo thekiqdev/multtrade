@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { getApiUrl } from './config'
 
 function Settings() {
   const [restEnabled, setRestEnabled] = useState(true)
@@ -21,7 +22,7 @@ function Settings() {
     // Poll WebSocket status
     const pollWebSocketStatus = setInterval(async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/config')
+        const response = await axios.get(getApiUrl('/api/config'))
         setWebsocketStatus(response.data.websocket_running || false)
         setWebsocketPrices(response.data.websocket_prices || {})
       } catch (err) {
@@ -41,7 +42,7 @@ function Settings() {
       const currentStoredRest = localStorage.getItem('rest_enabled')
       if (currentStoredRest === 'true') {
         // Try cache first (faster, no API calls)
-        axios.get('http://localhost:8000/api/cache/prices')
+        axios.get(getApiUrl('/api/cache/prices'))
           .then(response => {
             if (response.data && response.data.success && response.data.cache) {
               const cache = response.data.cache
@@ -59,9 +60,9 @@ function Settings() {
           .catch(() => {
             // Fallback to direct REST API if cache fails
             Promise.all([
-              axios.get('http://localhost:8000/api/market/BTC').catch(() => null),
-              axios.get('http://localhost:8000/api/market/ETH').catch(() => null),
-              axios.get('http://localhost:8000/api/market/SOL').catch(() => null)
+              axios.get(getApiUrl('/api/market/BTC')).catch(() => null),
+              axios.get(getApiUrl('/api/market/ETH')).catch(() => null),
+              axios.get(getApiUrl('/api/market/SOL')).catch(() => null)
             ]).then(([btcRes, ethRes, solRes]) => {
               const prices = {}
               if (btcRes?.data?.mid_price) prices.BTC = btcRes.data.mid_price
@@ -126,7 +127,7 @@ function Settings() {
       if (currentRestEnabled) {
         try {
           // Try cache first
-          const cacheResponse = await axios.get('http://localhost:8000/api/cache/prices')
+          const cacheResponse = await axios.get(getApiUrl('/api/cache/prices'))
           let prices = {}
           
           if (cacheResponse.data && cacheResponse.data.success && cacheResponse.data.cache) {
@@ -138,9 +139,9 @@ function Settings() {
           
           // Fallback to REST if cache is empty
           if (Object.keys(prices).length === 0) {
-            const btcResponse = await axios.get('http://localhost:8000/api/market/BTC')
-            const ethResponse = await axios.get('http://localhost:8000/api/market/ETH')
-            const solResponse = await axios.get('http://localhost:8000/api/market/SOL')
+            const btcResponse = await axios.get(getApiUrl('/api/market/BTC'))
+            const ethResponse = await axios.get(getApiUrl('/api/market/ETH'))
+            const solResponse = await axios.get(getApiUrl('/api/market/SOL'))
             
             if (btcResponse?.data?.mid_price) prices.BTC = btcResponse.data.mid_price
             if (ethResponse?.data?.mid_price) prices.ETH = ethResponse.data.mid_price
@@ -172,7 +173,7 @@ function Settings() {
       // Determine primary source (WebSocket takes priority if both are enabled)
       const primarySource = websocketEnabled ? 'websocket' : (restEnabled ? 'rest' : 'rest')
       
-      const response = await axios.post('http://localhost:8000/api/config', {
+      const response = await axios.post(getApiUrl('/api/config'), {
         price_source: primarySource,
         rest_enabled: restEnabled,
         websocket_enabled: websocketEnabled
@@ -268,7 +269,7 @@ function Settings() {
                     // Send to backend immediately to start/stop WebSocket
                     try {
                       const primarySource = newValue ? 'websocket' : (restEnabled ? 'rest' : 'rest')
-                      await axios.post('http://localhost:8000/api/config', {
+                      await axios.post(getApiUrl('/api/config'), {
                         price_source: primarySource,
                         rest_enabled: restEnabled,
                         websocket_enabled: newValue

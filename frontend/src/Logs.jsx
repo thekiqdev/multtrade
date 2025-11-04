@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { getApiUrl } from './config'
 
 function Logs() {
   const [logs, setLogs] = useState('')
@@ -13,7 +14,7 @@ function Logs() {
     setLoading(true)
     setError(null)
     try {
-      const response = await axios.get('http://localhost:8000/api/logs', {
+      const response = await axios.get(getApiUrl('/api/logs'), {
         params: { limit: 200 } // Get last 200 lines
       })
       
