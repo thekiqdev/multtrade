@@ -937,11 +937,8 @@ function App() {
                           `Preço deve estar entre ${minPrice.toFixed(3)} e ${maxPrice.toFixed(3)} ` +
                           `(preço atual: ${midPrice.toFixed(3)})`
                         )
-                        // Suggest valid price
-                        const suggestedPrice = rounded < minPrice 
-                          ? Math.max(minPrice, midPrice * 0.95)  // 5% below mid
-                          : Math.min(maxPrice, midPrice * 1.05)  // 5% above mid
-                        setLimitPrice(suggestedPrice.toFixed(3))
+                        // DON'T auto-insert suggested price - just show error
+                        // User can manually correct the value
                         return
                       }
                     }
