@@ -962,9 +962,9 @@ function App() {
                     const decimalPart = parts[1] || '000'
                     
                     // Format integer with thousand separator
-                      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-                      return `${formattedInteger}.${decimalPart.substring(0, 3)}`
-                    })() : '100.000'}
+                    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                    return `${formattedInteger}.${decimalPart.substring(0, 3)}`
+                  })() : '100.000'}
                   />
                 <button
                   type="button"
