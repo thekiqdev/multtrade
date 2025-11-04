@@ -224,6 +224,14 @@ async def get_config():
     websocket_enabled = os.getenv("WEBSOCKET_ENABLED", "false").lower() == "true"
     price_source = os.getenv("PRICE_SOURCE", "rest")
     
+    # Auto-restart WebSocket if it should be running but isn't
+    if websocket_enabled and not websocket_running:
+        logger.warning("⚠️ WebSocket is enabled but not running. Auto-starting...")
+        try:
+            start_websocket_background()
+        except Exception as e:
+            logger.error(f"Error auto-starting WebSocket: {e}")
+    
     return {
         "price_source": price_source,
         "rest_enabled": rest_enabled,
