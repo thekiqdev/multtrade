@@ -770,7 +770,7 @@ function App() {
           {/* Ask Price - Always from cache, real value */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">
-              Ask Price {askPrice && `(Mid: ${formatPrice(askPrice)})`}
+              {symbol}: ${askPrice ? formatPrice(askPrice) : 'Loading...'}
             </label>
             <div className="relative">
               <input
