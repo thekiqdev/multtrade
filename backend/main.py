@@ -1213,10 +1213,15 @@ async def create_order(order: OrderRequestModel):
                     market_data = await get_market_data(order.symbol)
                     if market_data:
                         mid_price = market_data.get("mid_price", 0)
-                        if order.side.lower() == "buy":
-                            aggressive_price = mid_price * 1.05
+                        # Ensure mid_price is a float, not string
+                        mid_price = float(mid_price) if mid_price else 0
+                        if mid_price > 0:
+                            if order.side.lower() == "buy":
+                                aggressive_price = mid_price * 1.05
+                            else:
+                                aggressive_price = mid_price * 0.95
                         else:
-                            aggressive_price = mid_price * 0.95
+                            raise Exception("Invalid market price from API")
                     else:
                         raise Exception("Could not get market price")
                 
