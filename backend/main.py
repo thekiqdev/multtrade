@@ -1181,19 +1181,62 @@ async def create_order(order: OrderRequestModel):
         # For limit orders: limit_px = price as string, order_type = {"limit": {"tif": "Gtc"}}
         
         if order.order_type.lower() == "market":
-            # Market order: limit_px = None, order_type = {"market": {}}
-            logger.info(f"Enviando ordem MARKET para Hyperliquid...")
+            # Market order: SDK doesn't handle None for limit_px, so we use IOC limit order with aggressive price
+            # IOC (Immediate or Cancel) acts like a market order - executes immediately or cancels
+            logger.info(f"Enviando ordem MARKET (via IOC limit) para Hyperliquid...")
             logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
             logger.info(f"  Is Buy: {is_buy}")
             logger.info(f"  Size: {size}")
-            logger.info(f"  Order Type: market (no price)")
-            result = exchange.order(
-                order.symbol,  # coin
-                is_buy,  # is_buy
-                str(size),  # sz (as string)
-                None,  # limit_px (None for market orders)
-                {"market": {}}  # order_type
-            )
+            logger.info(f"  Order Type: market (using IOC limit with aggressive price)")
+            
+            # Get current market price for aggressive limit order
+            try:
+                symbol_upper = order.symbol.upper()
+                if symbol_upper in price_cache:
+                    cached = price_cache[symbol_upper]
+                    if order.side.lower() == "buy":
+                        # For buy: use ask_price (or mid_price + 5% to be very aggressive)
+                        market_price = cached.get("ask_price") or cached.get("mid_price")
+                        if market_price:
+                            aggressive_price = float(market_price) * 1.05  # 5% above to ensure execution
+                        else:
+                            raise Exception("No market price available")
+                    else:
+                        # For sell: use bid_price (or mid_price - 5% to be very aggressive)
+                        market_price = cached.get("bid_price") or cached.get("mid_price")
+                        if market_price:
+                            aggressive_price = float(market_price) * 0.95  # 5% below to ensure execution
+                        else:
+                            raise Exception("No market price available")
+                else:
+                    # Fallback: get from API
+                    market_data = await get_market_data(order.symbol)
+                    if market_data:
+                        mid_price = market_data.get("mid_price", 0)
+                        if order.side.lower() == "buy":
+                            aggressive_price = mid_price * 1.05
+                        else:
+                            aggressive_price = mid_price * 0.95
+                    else:
+                        raise Exception("Could not get market price")
+                
+                aggressive_price = round(aggressive_price, 2)
+                logger.info(f"Using aggressive price for market order: {aggressive_price}")
+                
+                # Use IOC (Immediate or Cancel) limit order as market order
+                result = exchange.order(
+                    order.symbol,  # coin
+                    is_buy,  # is_buy
+                    str(size),  # sz (as string)
+                    str(aggressive_price),  # limit_px (aggressive price for immediate execution)
+                    {"limit": {"tif": "Ioc"}}  # IOC = Immediate or Cancel (acts like market)
+                )
+            except Exception as e:
+                logger.error(f"Error getting market price for market order: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {str(e)}"
+                )
         else:
             # Limit order: requires limit_px, order_type = {"limit": {"tif": "Gtc"}}
             if not price or price <= 0:
