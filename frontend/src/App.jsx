@@ -971,10 +971,15 @@ function App() {
                   onClick={() => {
                     if (askPrice && askPrice > 0) {
                       // Use the current askPrice (mid_price) as limit price
-                      // Format to 3 decimal places
-                      const formattedPrice = askPrice.toFixed(3)
-                      setLimitPrice(formattedPrice)
-                      setPriceError(null)
+                      // Format to 3 decimal places and ensure it's exactly 3 decimals
+                      const num = parseFloat(askPrice)
+                      if (!isNaN(num) && num > 0) {
+                        // Round to 3 decimal places and format
+                        const rounded = Math.round(num * 1000) / 1000
+                        const formattedPrice = rounded.toFixed(3)
+                        setLimitPrice(formattedPrice)
+                        setPriceError(null)
+                      }
                     }
                   }}
                   disabled={!askPrice || askPrice <= 0}
