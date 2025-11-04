@@ -710,7 +710,7 @@ function App() {
     
     if (lastDotIndex === -1) {
       // No decimal point - format as integer with thousand separator
-      // Only add separators if number is 4+ digits (e.g., 1000 → 1.000, but 111 stays 111)
+      // Only format if number is 4+ digits to avoid interfering with typing
       if (cleaned.length < 4) {
         return cleaned
       }
@@ -941,6 +941,7 @@ function App() {
                     }
                     
                     // Format to 3 decimal places and store raw (without thousand separators)
+                    // This ensures the value is stored correctly for next edit
                     setLimitPrice(roundedStr)
                     setPriceError(null)
                   }}
