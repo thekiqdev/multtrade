@@ -15,7 +15,7 @@ import asyncio
 import json
 import websockets
 from threading import Thread
-import time
+import traceback
 
 # Configurar logging
 logging.basicConfig(
@@ -224,14 +224,6 @@ async def get_config():
     websocket_enabled = os.getenv("WEBSOCKET_ENABLED", "false").lower() == "true"
     price_source = os.getenv("PRICE_SOURCE", "rest")
     
-    # Auto-restart WebSocket if it should be running but isn't
-    if websocket_enabled and not websocket_running:
-        logger.warning("⚠️ WebSocket is enabled but not running. Auto-starting...")
-        try:
-            start_websocket_background()
-        except Exception as e:
-            logger.error(f"Error auto-starting WebSocket: {e}")
-    
     return {
         "price_source": price_source,
         "rest_enabled": rest_enabled,
@@ -318,16 +310,27 @@ async def update_config(config: dict):
 
 async def websocket_price_updater():
     """WebSocket client that connects to Hyperliquid and updates prices"""
-    global websocket_running, websocket_price_data, active_websocket_connections, price_cache
+    global websocket_running, websocket_price_data, active_websocket_connections, price_cache, WEBSOCKET_ENABLED
     
     uri = "wss://api.hyperliquid-testnet.xyz/ws"
     symbols_to_subscribe = ["BTC", "ETH", "SOL"]
+    reconnect_delay = 5  # Start with 5 seconds
+    max_reconnect_delay = 60  # Max 60 seconds between reconnection attempts
     
     while websocket_running:
         try:
-            async with websockets.connect(uri) as ws:
-                logger.info("✅ WebSocket connected to Hyperliquid")
+            # Check if WebSocket is still enabled before attempting connection
+            if not WEBSOCKET_ENABLED:
+                logger.info("WebSocket disabled, stopping connection attempts")
+                websocket_running = False
+                break
                 
+            logger.info(f"🔄 Connecting to Hyperliquid WebSocket... (attempt after {reconnect_delay}s delay)")
+            async with websockets.connect(uri, ping_interval=None) as ws:
+                logger.info("✅ WebSocket connected to Hyperliquid")
+                reconnect_delay = 5  # Reset delay on successful connection
+                
+                # Subscribe to trades for all symbols
                 for symbol in symbols_to_subscribe:
                     subscription_msg = {
                         "method": "subscribe",
@@ -340,7 +343,8 @@ async def websocket_price_updater():
                     logger.info(f"Subscribed to trades for {symbol}")
                     await asyncio.sleep(0.1)
                 
-                while websocket_running:
+                # Main message loop
+                while websocket_running and WEBSOCKET_ENABLED:
                     try:
                         msg = await asyncio.wait_for(ws.recv(), timeout=30.0)
                         
@@ -413,26 +417,43 @@ async def websocket_price_updater():
                                                 else:
                                                     logger.warning(f"⚠️ No active WebSocket connections to send price_update for {symbol}")
                     except asyncio.TimeoutError:
+                        # Send ping to keep connection alive
                         try:
                             await ws.send(json.dumps({"method": "ping"}))
                         except:
-                            # If ping fails, connection is likely broken, break inner loop to reconnect
+                            # If ping fails, connection is likely broken, break to reconnect
                             logger.warning("WebSocket ping failed, connection may be broken. Reconnecting...")
                             break
+                    except websockets.exceptions.ConnectionClosed:
+                        logger.warning("WebSocket connection closed by server. Reconnecting...")
+                        break
                     except Exception as e:
                         logger.error(f"Error processing WebSocket message: {e}")
-                        # If error is connection-related, break to reconnect
-                        if "connection" in str(e).lower() or "closed" in str(e).lower():
+                        # If it's a connection error, break to reconnect
+                        if "connection" in str(e).lower() or "closed" in str(e).lower() or "broken" in str(e).lower():
                             logger.warning("WebSocket connection error detected. Reconnecting...")
                             break
                         await asyncio.sleep(1)
                         
+        except websockets.exceptions.ConnectionClosed:
+            logger.warning("WebSocket connection closed. Will reconnect...")
+        except websockets.exceptions.InvalidURI:
+            logger.error("Invalid WebSocket URI. Cannot reconnect.")
+            break
         except Exception as e:
             logger.error(f"WebSocket connection error: {e}")
-            if websocket_running:
-                logger.info(f"🔄 Attempting to reconnect WebSocket in 5 seconds...")
-                await asyncio.sleep(5)
-                # Continue loop to reconnect automatically
+            import traceback
+            logger.error(traceback.format_exc())
+        
+        # Only reconnect if still enabled and running
+        if websocket_running and WEBSOCKET_ENABLED:
+            logger.info(f"🔄 Attempting to reconnect WebSocket in {reconnect_delay} seconds...")
+            await asyncio.sleep(reconnect_delay)
+            # Exponential backoff: increase delay up to max, but reset on successful connection
+            reconnect_delay = min(reconnect_delay * 1.5, max_reconnect_delay)
+        else:
+            logger.info("WebSocket stopped or disabled. Not reconnecting.")
+            break
 
 
 def start_websocket_background():
@@ -440,7 +461,6 @@ def start_websocket_background():
     global websocket_running, websocket_task
     
     if websocket_running:
-        logger.info("WebSocket is already running")
         return
     
     websocket_running = True
@@ -451,25 +471,6 @@ def start_websocket_background():
     websocket_task = Thread(target=run_websocket, daemon=True)
     websocket_task.start()
     logger.info("🚀 WebSocket background task started")
-    
-    # Monitor thread health - restart if it dies (only if WebSocket is still enabled)
-    def monitor_websocket():
-        while True:
-            time.sleep(30)  # Check every 30 seconds
-            if WEBSOCKET_ENABLED and not websocket_running:
-                logger.warning("⚠️ WebSocket stopped but should be running. Auto-restarting...")
-                try:
-                    global websocket_task
-                    websocket_running = True
-                    websocket_task = Thread(target=run_websocket, daemon=True)
-                    websocket_task.start()
-                    logger.info("✅ WebSocket auto-restarted successfully")
-                except Exception as e:
-                    logger.error(f"Error auto-restarting WebSocket: {e}")
-    
-    monitor_thread = Thread(target=monitor_websocket, daemon=True)
-    monitor_thread.start()
-    logger.info("✅ WebSocket monitor started (auto-restart enabled)")
 
 
 def stop_websocket_background():
