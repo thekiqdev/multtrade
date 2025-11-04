@@ -1221,6 +1221,8 @@ async def create_order(order: OrderRequestModel):
                                 
                                 if market_price > 0:
                                     aggressive_price = float(market_price) * 1.05  # 5% above to ensure execution
+                                    # Ensure aggressive_price is actually a float
+                                    aggressive_price = float(aggressive_price)
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
@@ -1244,6 +1246,8 @@ async def create_order(order: OrderRequestModel):
                                 
                                 if market_price > 0:
                                     aggressive_price = float(market_price) * 0.95  # 5% below to ensure execution
+                                    # Ensure aggressive_price is actually a float
+                                    aggressive_price = float(aggressive_price)
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
