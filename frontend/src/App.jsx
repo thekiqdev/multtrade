@@ -641,7 +641,19 @@ function App() {
         order_type: orderType,
         quantity_usd: parseFloat(quantityUsd),
         size: size,
-        price: orderType === 'limit' && limitPrice ? parseFloat(limitPrice.replace(/[^0-9.]/g, '')) : null,
+        price: orderType === 'limit' && limitPrice ? (() => {
+          // Remove thousand separators (points), keep only decimal separator
+          const cleaned = limitPrice.replace(/\./g, '')
+          // If there was a decimal part, add it back
+          const parts = limitPrice.split('.')
+          if (parts.length > 1) {
+            // Last part is decimal, everything else is thousands
+            const decimalPart = parts[parts.length - 1]
+            const integerPart = parts.slice(0, -1).join('').replace(/\./g, '')
+            return parseFloat(integerPart + '.' + decimalPart)
+          }
+          return parseFloat(cleaned)
+        })() : null,
         leverage: leverage,
         takeprofit: takeprofit ? parseFloat(takeprofit) : null,
         stoploss: stoploss ? parseFloat(stoploss) : null
@@ -675,6 +687,32 @@ function App() {
     }).format(price)
     // Replace comma with point for thousand separator (like exchange format)
     return formatted.replace(/,/g, '.')
+  }
+
+  const formatLimitPrice = (value) => {
+    if (!value || value === '') return ''
+    // Remove all non-numeric characters except decimal point
+    const cleaned = value.replace(/[^0-9.]/g, '')
+    
+    // Handle empty or just dot
+    if (cleaned === '' || cleaned === '.') return cleaned
+    
+    // Split by decimal point
+    const parts = cleaned.split('.')
+    const integerPart = parts[0] || '0'
+    const decimalPart = parts[1] || ''
+    
+    // Format integer part with thousand separator (point)
+    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    
+    // Limit decimal part to 3 digits
+    const limitedDecimal = decimalPart.slice(0, 3)
+    
+    // Combine
+    if (limitedDecimal) {
+      return `${formattedInteger}.${limitedDecimal}`
+    }
+    return formattedInteger
   }
 
   const formatNumber = (num) => {
@@ -790,7 +828,7 @@ function App() {
               <div className="relative">
                 <input
                   type="text"
-                  value={limitPrice}
+                  value={formatLimitPrice(limitPrice)}
                   onChange={(e) => {
                     const rawValue = e.target.value
                     // Remove tudo exceto números e ponto decimal
@@ -800,10 +838,13 @@ function App() {
                     const parts = cleanedValue.split('.')
                     let finalValue = parts[0]
                     if (parts.length > 1) {
-                      finalValue += '.' + parts.slice(1).join('')
+                      // Limita a 3 casas decimais
+                      const decimalPart = parts.slice(1).join('').slice(0, 3)
+                      finalValue += '.' + decimalPart
                     }
                     
                     setPriceError(null)
+                    // Armazena o valor raw (sem formatação) para processamento
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
