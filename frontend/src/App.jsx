@@ -743,9 +743,8 @@ function App() {
     const lastDotIndex = cleaned.lastIndexOf('.')
     
     if (lastDotIndex === -1) {
-      // No decimal point - format as integer with thousand separator
-      // Format automatically during typing, but only if 4+ digits
-      // This prevents formatting when typing small numbers (1, 11, 111)
+      // No decimal point - format with thousand separator if 4+ digits
+      // Apply formatting automatically but smoothly
       if (cleaned.length < 4) {
         return cleaned
       }
@@ -757,8 +756,8 @@ function App() {
     const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // Format integer part with thousand separator automatically during typing
-    // Apply formatting if integer part has 4+ digits
+    // Format integer part with thousand separator if 4+ digits
+    // Apply formatting automatically during typing
     let formattedInteger = integerPart
     if (integerPart.length >= 4) {
       formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
@@ -898,10 +897,10 @@ function App() {
                     
                     if (lastDotIndex === -1) {
                       // Sem ponto decimal - apenas números
-                      // Permite digitação: 111 → 1111 → 11111 → 111111
-                      // Armazena raw (sem formatação)
+                      // Remove separadores de milhares para armazenar raw
+                      const rawNumber = cleanedValue.replace(/\./g, '')
                       setPriceError(null)
-                      setLimitPrice(cleanedValue)
+                      setLimitPrice(rawNumber)
                       return
                     }
                     
@@ -920,6 +919,7 @@ function App() {
                     
                     setPriceError(null)
                     // Armazena o valor raw (sem formatação de milhares na parte inteira)
+                    // A formatação será aplicada automaticamente no formatLimitPrice
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
