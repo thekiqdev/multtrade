@@ -970,9 +970,15 @@ function App() {
                   type="button"
                   onClick={() => {
                     if (askPrice && askPrice > 0) {
-                      // Use the current askPrice (mid_price) as limit price
-                      // This is the raw value (e.g., 99898.0)
-                      const num = parseFloat(askPrice)
+                      // Use the exact same value that's displayed in BTC field
+                      // Get the formatted value from BTC field (which uses formatPrice)
+                      const btcDisplayValue = formatPrice(askPrice)
+                      
+                      // Remove formatting (thousand separators) to get raw number
+                      // The BTC field shows "99.898" but the actual value is 99898
+                      const rawNumber = btcDisplayValue.replace(/\./g, '')
+                      const num = parseFloat(rawNumber)
+                      
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places (ignore any extra decimals)
                         const rounded = Math.round(num * 1000) / 1000
