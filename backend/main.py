@@ -310,7 +310,7 @@ async def update_config(config: dict):
 
 async def websocket_price_updater():
     """WebSocket client that connects to Hyperliquid and updates prices"""
-    global websocket_running, websocket_price_data, active_websocket_connections, price_cache, WEBSOCKET_ENABLED
+    global websocket_running, websocket_price_data, active_websocket_connections, price_cache
     
     uri = "wss://api.hyperliquid-testnet.xyz/ws"
     symbols_to_subscribe = ["BTC", "ETH", "SOL"]
@@ -320,7 +320,8 @@ async def websocket_price_updater():
     while websocket_running:
         try:
             # Check if WebSocket is still enabled before attempting connection
-            if not WEBSOCKET_ENABLED:
+            websocket_enabled = os.getenv("WEBSOCKET_ENABLED", "false").lower() == "true"
+            if not websocket_enabled:
                 logger.info("WebSocket disabled, stopping connection attempts")
                 websocket_running = False
                 break
@@ -344,7 +345,12 @@ async def websocket_price_updater():
                     await asyncio.sleep(0.1)
                 
                 # Main message loop
-                while websocket_running and WEBSOCKET_ENABLED:
+                while websocket_running:
+                    # Check if still enabled
+                    websocket_enabled = os.getenv("WEBSOCKET_ENABLED", "false").lower() == "true"
+                    if not websocket_enabled:
+                        logger.info("WebSocket disabled during connection, stopping...")
+                        break
                     try:
                         msg = await asyncio.wait_for(ws.recv(), timeout=30.0)
                         
@@ -446,7 +452,8 @@ async def websocket_price_updater():
             logger.error(traceback.format_exc())
         
         # Only reconnect if still enabled and running
-        if websocket_running and WEBSOCKET_ENABLED:
+        websocket_enabled = os.getenv("WEBSOCKET_ENABLED", "false").lower() == "true"
+        if websocket_running and websocket_enabled:
             logger.info(f"🔄 Attempting to reconnect WebSocket in {reconnect_delay} seconds...")
             await asyncio.sleep(reconnect_delay)
             # Exponential backoff: increase delay up to max, but reset on successful connection
