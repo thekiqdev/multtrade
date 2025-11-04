@@ -1117,23 +1117,23 @@ async def create_order(order: OrderRequestModel):
                             reference_price = None
                         
                         if reference_price and reference_price > 0:
-                                min_price = reference_price * 0.2  # 20% of reference
-                                max_price = reference_price * 1.8  # 180% of reference
-                                
-                                if price < min_price or price > max_price:
-                                    error_msg = (
-                                        f"Order price cannot be more than 80% away from the reference price. "
-                                        f"Reference price: {reference_price:.2f}, "
-                                        f"Valid range: {min_price:.2f} - {max_price:.2f}, "
-                                        f"Your price: {price:.2f}"
-                                    )
-                                    logger.error(f"❌ {error_msg}")
-                                    log_order_request(order_data, error=error_msg)
-                                    raise HTTPException(
-                                        status_code=400,
-                                        detail=error_msg
-                                    )
-                                logger.info(f"Price validation OK: {price:.2f} is within range ({min_price:.2f} - {max_price:.2f})")
+                            min_price = reference_price * 0.2  # 20% of reference
+                            max_price = reference_price * 1.8  # 180% of reference
+                            
+                            if price < min_price or price > max_price:
+                                error_msg = (
+                                    f"Order price cannot be more than 80% away from the reference price. "
+                                    f"Reference price: {reference_price:.2f}, "
+                                    f"Valid range: {min_price:.2f} - {max_price:.2f}, "
+                                    f"Your price: {price:.2f}"
+                                )
+                                logger.error(f"❌ {error_msg}")
+                                log_order_request(order_data, error=error_msg)
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=error_msg
+                                )
+                            logger.info(f"Price validation OK: {price:.2f} is within range ({min_price:.2f} - {max_price:.2f})")
                 except HTTPException:
                     raise
                 except Exception as e:
