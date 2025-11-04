@@ -665,11 +665,12 @@ function App() {
   }
 
   const formatPrice = (price) => {
-    if (!price) return '0.000'
-    // Format with 3 decimal places for crypto prices (BTC)
+    if (!price) return '0'
+    // Format as integer with thousand separator (no decimal places)
+    // Uses comma as thousand separator (US format: 100,581)
     return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(price)
   }
 
@@ -766,7 +767,7 @@ function App() {
           {/* Ask Price - Always from cache, real value */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">
-              Ask Price {askPrice && `(Mid: ${askPrice.toFixed(3)})`}
+              Ask Price {askPrice && `(Mid: ${formatPrice(askPrice)})`}
             </label>
             <div className="relative">
               <input
