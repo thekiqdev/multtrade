@@ -1211,7 +1211,9 @@ async def create_order(order: OrderRequestModel):
                                     raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
                                 
                                 if market_price > 0:
-                                    aggressive_price = float(market_price * 1.05)  # 5% above to ensure execution
+                                    # Calculate aggressive price and ensure it's float
+                                    calculated = market_price * 1.05  # 5% above to ensure execution
+                                    aggressive_price = float(calculated)
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
@@ -1235,7 +1237,9 @@ async def create_order(order: OrderRequestModel):
                                     raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
                                 
                                 if market_price > 0:
-                                    aggressive_price = float(market_price * 0.95)  # 5% below to ensure execution
+                                    # Calculate aggressive price and ensure it's float
+                                    calculated = market_price * 0.95  # 5% below to ensure execution
+                                    aggressive_price = float(calculated)
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
@@ -1261,9 +1265,11 @@ async def create_order(order: OrderRequestModel):
                             
                         if mid_price > 0:
                             if order.side.lower() == "buy":
-                                aggressive_price = float(mid_price * 1.05)
+                                calculated = mid_price * 1.05
+                                aggressive_price = float(calculated)
                             else:
-                                aggressive_price = float(mid_price * 0.95)
+                                calculated = mid_price * 0.95
+                                aggressive_price = float(calculated)
                         else:
                             raise Exception("Invalid market price from API")
                     else:
