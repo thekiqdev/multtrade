@@ -1126,67 +1126,79 @@ async def create_order(order: OrderRequestModel):
                     detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {str(e)}"
                 )
         else:
-            order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel for limit orders
+            # Limit orders: Create and schedule (Good Till Cancel - stays in order book)
+            order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel - order stays in book until executed or cancelled
+            logger.info("📅 Creating LIMIT order - will be SCHEDULED in order book (not executed immediately)")
+            
             # For limit orders, validate and round price to tick size
             # Hyperliquid BTC tick size is 0.01 (2 decimal places)
             # Round to 2 decimal places to match valid tick size
             price = float(order.price) if order.price and order.price > 0 else None
-            if price:
-                # Round to 2 decimal places (tick size 0.01)
-                price = round(price, 2)
-                logger.info(f"Limit order price (rounded to 2 decimals): {price}")
-                
-                # Validate price is within 80% of reference price (20% to 180% of mid price)
-                # Hyperliquid requires: price cannot be more than 80% away from reference
-                try:
-                    market_data = info_client.all_mids() if info_client else None
-                    meta = info_client.meta() if info_client else None
-                    if meta and market_data:
-                        asset_index = None
-                        for i, asset in enumerate(meta.get("universe", [])):
-                            if asset["name"] == order.symbol:
-                                asset_index = i
-                                break
-                        if asset_index is not None and asset_index < len(market_data):
-                            reference_price = market_data[asset_index]
-                            if reference_price and reference_price > 0:
-                                min_price = reference_price * 0.2  # 20% of reference
-                                max_price = reference_price * 1.8  # 180% of reference
-                                
-                                if price < min_price or price > max_price:
-                                    error_msg = (
-                                        f"Order price cannot be more than 80% away from the reference price. "
-                                        f"Reference price: {reference_price:.2f}, "
-                                        f"Valid range: {min_price:.2f} - {max_price:.2f}, "
-                                        f"Your price: {price:.2f}"
-                                    )
-                                    logger.error(f"❌ {error_msg}")
-                                    log_order_request(order_data, error=error_msg)
-                                    raise HTTPException(
-                                        status_code=400,
-                                        detail=error_msg
-                                    )
-                                logger.info(f"Price validation OK: {price:.2f} is within range ({min_price:.2f} - {max_price:.2f})")
-                except HTTPException:
-                    raise
-                except Exception as e:
-                    logger.warning(f"Could not validate price against reference: {e}")
-                    # Continue anyway - let Hyperliquid API validate
+            
             if not price:
-                # If no price provided for limit order, get current market price
-                try:
-                    market_data = info_client.all_mids() if info_client else None
-                    meta = info_client.meta() if info_client else None
-                    if meta and market_data:
-                        asset_index = None
-                        for i, asset in enumerate(meta.get("universe", [])):
-                            if asset["name"] == order.symbol:
-                                asset_index = i
-                                break
-                        if asset_index is not None and asset_index < len(market_data):
-                            price = market_data[asset_index]
-                except Exception as e:
-                    print(f"Warning: Could not get market price: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Price must be specified for limit orders. Limit orders are scheduled in the order book and require a price."
+                )
+            
+            # Round to 2 decimal places (tick size 0.01)
+            price = round(price, 2)
+            logger.info(f"Limit order price (rounded to 2 decimals): {price}")
+            
+            # Validate price is within 80% of reference price (20% to 180% of mid price)
+            # Hyperliquid requires: price cannot be more than 80% away from reference
+            try:
+                # Get current market price for validation
+                market_data = info_client.all_mids() if info_client else None
+                meta = info_client.meta() if info_client else None
+                if meta and market_data:
+                    asset_index = None
+                    for i, asset in enumerate(meta.get("universe", [])):
+                        if asset["name"] == order.symbol:
+                            asset_index = i
+                            break
+                    if asset_index is not None:
+                        # Get reference price
+                        if isinstance(market_data, dict):
+                            reference_price = market_data.get(order.symbol.upper()) or market_data.get(order.symbol)
+                            if reference_price is None:
+                                market_list = list(market_data.values())
+                                if asset_index < len(market_list):
+                                    reference_price = market_list[asset_index]
+                                else:
+                                    reference_price = None
+                            else:
+                                reference_price = float(reference_price)
+                        elif isinstance(market_data, list) and asset_index < len(market_data):
+                            reference_price = float(market_data[asset_index])
+                        else:
+                            reference_price = None
+                        
+                        if reference_price and reference_price > 0:
+                            min_price = reference_price * 0.2  # 20% of reference
+                            max_price = reference_price * 1.8  # 180% of reference
+                            
+                            if price < min_price or price > max_price:
+                                error_msg = (
+                                    f"Order price cannot be more than 80% away from the reference price. "
+                                    f"Reference price: {reference_price:.2f}, "
+                                    f"Valid range: {min_price:.2f} - {max_price:.2f}, "
+                                    f"Your price: {price:.2f}"
+                                )
+                                logger.error(f"❌ {error_msg}")
+                                log_order_request(order_data, error=error_msg)
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=error_msg
+                                )
+                            logger.info(f"✅ Price validation OK: {price:.2f} is within range ({min_price:.2f} - {max_price:.2f})")
+                        else:
+                            logger.warning(f"Could not get reference price for validation, proceeding anyway...")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Could not validate price against reference: {e}")
+                # Continue anyway - let Hyperliquid API validate
         
         # Final check: ensure size is properly rounded before sending
         # This prevents float_to_wire rounding errors in the SDK
@@ -1230,7 +1242,11 @@ async def create_order(order: OrderRequestModel):
             )
         
         # Log final order details before sending
-        logger.info(f"Enviando ordem para Hyperliquid...")
+        if order.order_type.lower() == "market":
+            logger.info(f"🚀 Enviando ORDEM MARKET (execução imediata)...")
+        else:
+            logger.info(f"📅 Agendando ORDEM LIMIT (será colocada no livro de ordens)...")
+        
         logger.info(f"  Symbol: {order.symbol}")
         logger.info(f"  Is Buy: {is_buy}")
         logger.info(f"  Size: {size} (type: {type(size).__name__})")
@@ -1250,6 +1266,17 @@ async def create_order(order: OrderRequestModel):
                     detail=error_msg
                 )
             logger.info(f"✅ Market order structure validated: {order_type}")
+        else:
+            # For limit orders, order_type should be {"limit": {"tif": "Gtc"}}
+            if not isinstance(order_type, dict) or "limit" not in order_type:
+                error_msg = f"Invalid order_type structure for limit order: {order_type}. Expected {{'limit': {{'tif': 'Gtc'}}}}"
+                logger.error(f"❌ {error_msg}")
+                log_order_request(order_data, error=error_msg)
+                raise HTTPException(
+                    status_code=400,
+                    detail=error_msg
+                )
+            logger.info(f"✅ Limit order structure validated: {order_type} - will be SCHEDULED in order book")
         
         result = exchange.order(
             order.symbol,
@@ -1260,7 +1287,10 @@ async def create_order(order: OrderRequestModel):
         )
         
         logger.info("=" * 80)
-        logger.info("✅ ORDEM ENVIADA COM SUCESSO!")
+        if order.order_type.lower() == "market":
+            logger.info("✅ ORDEM MARKET EXECUTADA COM SUCESSO!")
+        else:
+            logger.info("✅ ORDEM LIMIT AGENDADA COM SUCESSO! (No livro de ordens)")
         logger.info(f"Resultado da API: {result}")
         logger.info("=" * 80)
         
