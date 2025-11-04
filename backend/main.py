@@ -1059,10 +1059,14 @@ async def create_order(order: OrderRequestModel):
             except Exception as e:
                 print(f"Warning: Could not set leverage: {e}")
         
-        # Build order type
-        if order.order_type.lower() == "market":
+        # Build order type - validate order_type explicitly
+        order_type_str = order.order_type.lower().strip()
+        logger.info(f"🔍 Processing order type: '{order_type_str}' (original: '{order.order_type}')")
+        
+        if order_type_str == "market":
             # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel)
             order_type = {"limit": {"tif": "Ioc"}}  # Immediate or Cancel for market orders
+            logger.info("⚡ Creating MARKET order - will be executed IMMEDIATELY (IOC)")
             
             # For market orders, fetch FRESH price from API at order time (not cache)
             # This ensures we get the most current price for immediate execution
@@ -1082,48 +1086,39 @@ async def create_order(order: OrderRequestModel):
                     raise Exception("Invalid reference price from market data")
                 
                 if order.side.lower() == "buy":
-                    # For BUY orders: use ask_price + margin to be very aggressive
-                    # Use a more conservative margin to ensure price is valid
+                    # For BUY orders: use ask_price + small margin to be very aggressive
                     if ask_price and ask_price > 0:
-                        # Use ask_price + 0.5% to ensure we can buy immediately
-                        price = float(ask_price) * 1.005
-                        logger.info(f"Market BUY using ask_price + 0.5%: {price} (ask: {ask_price}, mid: {reference_price})")
+                        # Use ask_price + 0.1% to ensure we can buy immediately
+                        price = float(ask_price) * 1.001
+                        logger.info(f"Market BUY using ask_price + 0.1%: {price} (ask: {ask_price}, mid: {reference_price})")
                     else:
-                        # Fallback: use mid_price + 1% to be aggressive
-                        price = float(reference_price) * 1.01
-                        logger.info(f"Market BUY using mid_price + 1%: {price} (mid: {reference_price})")
+                        # Fallback: use mid_price + 0.2% to be aggressive
+                        price = float(reference_price) * 1.002
+                        logger.info(f"Market BUY using mid_price + 0.2%: {price} (mid: {reference_price})")
                 else:  # sell
-                    # For SELL orders: use bid_price - margin to be very aggressive
+                    # For SELL orders: use bid_price - small margin to be very aggressive
                     if bid_price and bid_price > 0:
-                        # Use bid_price - 0.5% to ensure we can sell immediately
-                        price = float(bid_price) * 0.995
-                        logger.info(f"Market SELL using bid_price - 0.5%: {price} (bid: {bid_price}, mid: {reference_price})")
+                        # Use bid_price - 0.1% to ensure we can sell immediately
+                        price = float(bid_price) * 0.999
+                        logger.info(f"Market SELL using bid_price - 0.1%: {price} (bid: {bid_price}, mid: {reference_price})")
                     else:
-                        # Fallback: use mid_price - 1% to be aggressive
-                        price = float(reference_price) * 0.99
-                        logger.info(f"Market SELL using mid_price - 1%: {price} (mid: {reference_price})")
+                        # Fallback: use mid_price - 0.2% to be aggressive
+                        price = float(reference_price) * 0.998
+                        logger.info(f"Market SELL using mid_price - 0.2%: {price} (mid: {reference_price})")
                 
                 # Validate price is within Hyperliquid's acceptable range (20% to 180% of reference)
                 min_valid_price = reference_price * 0.2
                 max_valid_price = reference_price * 1.8
                 
-                # Ensure price is within valid range BEFORE rounding
                 if price < min_valid_price:
-                    logger.warning(f"Price {price} below minimum {min_valid_price}, adjusting to minimum...")
-                    price = min_valid_price * 1.01  # Add 1% margin to minimum
+                    logger.warning(f"Price {price} below minimum {min_valid_price}, adjusting...")
+                    price = min_valid_price
                 elif price > max_valid_price:
-                    logger.warning(f"Price {price} above maximum {max_valid_price}, adjusting to maximum...")
-                    price = max_valid_price * 0.99  # Subtract 1% margin from maximum
+                    logger.warning(f"Price {price} above maximum {max_valid_price}, adjusting...")
+                    price = max_valid_price
                 
-                # Round to 2 decimal places for price (Hyperliquid tick size)
+                # Round to 2 decimal places for price
                 price = round(price, 2)
-                
-                # Final validation: ensure price is still within range after rounding
-                if price < min_valid_price:
-                    price = round(min_valid_price * 1.01, 2)
-                elif price > max_valid_price:
-                    price = round(max_valid_price * 0.99, 2)
-                
                 logger.info(f"✅ Market order final price: {price} (side: {order.side}, reference: {reference_price:.2f}, range: {min_valid_price:.2f}-{max_valid_price:.2f})")
                     
             except Exception as e:
@@ -1134,11 +1129,10 @@ async def create_order(order: OrderRequestModel):
                     status_code=400,
                     detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {str(e)}"
                 )
-        else:
+        elif order_type_str == "limit":
             # Limit orders: Create and schedule (Good Till Cancel - stays in order book)
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel - order stays in book until executed or cancelled
             logger.info("📅 Creating LIMIT order - will be SCHEDULED in order book (not executed immediately)")
-            logger.info(f"📌 Limit order price from user: {order.price}")
             
             # For limit orders, validate and round price to tick size
             # Hyperliquid BTC tick size is 0.01 (2 decimal places)
@@ -1153,9 +1147,14 @@ async def create_order(order: OrderRequestModel):
             
             # Round to 2 decimal places (tick size 0.01)
             price = round(price, 2)
-            logger.info(f"✅ Limit order price (rounded to 2 decimals): {price}")
-            logger.info(f"📋 This order will be SCHEDULED in the order book with price {price}")
-            logger.info(f"⚠️  NOTE: If price is close to market, it may execute immediately. Otherwise, it will stay in order book.")
+            logger.info(f"Limit order price (rounded to 2 decimals): {price}")
+        else:
+            # Invalid order type
+            logger.error(f"❌ Invalid order type: '{order.order_type}' (expected 'market' or 'limit')")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid order type: '{order.order_type}'. Must be 'market' or 'limit'."
+            )
             
             # Validate price is within 80% of reference price (20% to 180% of mid price)
             # Hyperliquid requires: price cannot be more than 80% away from reference

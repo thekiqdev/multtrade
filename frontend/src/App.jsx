@@ -684,10 +684,22 @@ function App() {
         }
       }
 
+      // Ensure order_type is explicitly set and validated
+      const validatedOrderType = orderType === 'market' ? 'market' : (orderType === 'limit' ? 'limit' : 'limit')
+      
+      console.log('📤 Sending order:', {
+        symbol,
+        side,
+        order_type: validatedOrderType,
+        price: parsedPrice,
+        size,
+        quantity_usd: parseFloat(quantityUsd)
+      })
+
       const orderData = {
         symbol: symbol,
         side: side,
-        order_type: orderType,
+        order_type: validatedOrderType,
         quantity_usd: parseFloat(quantityUsd),
         size: size,
         price: parsedPrice,
