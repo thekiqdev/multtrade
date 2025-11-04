@@ -276,9 +276,12 @@ function Settings() {
                       })
                       
                       // Update status immediately
-                      const statusResponse = await axios.get('http://localhost:8000/api/config')
+                      const statusResponse = await axios.get(getApiUrl('/api/config'))
                       setWebsocketStatus(statusResponse.data.websocket_running || false)
                       setWebsocketPrices(statusResponse.data.websocket_prices || {})
+                      
+                      // Trigger custom event to notify App.jsx to reconnect (works in same tab)
+                      window.dispatchEvent(new Event('websocket-config-changed'))
                       
                       console.log('✅ WebSocket', newValue ? 'ativado' : 'desativado', 'com sucesso')
                     } catch (err) {
