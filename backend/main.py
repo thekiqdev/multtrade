@@ -1215,7 +1215,8 @@ async def create_order(order: OrderRequestModel):
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                raise Exception(f"Could not convert market price to float: {str(e)}")
+                                error_msg = str(e) if e else "Unknown error"
+                                raise Exception(f"Could not convert market price to float: {error_msg}")
                         else:
                             raise Exception("No market price available in cache")
                     else:
@@ -1238,7 +1239,8 @@ async def create_order(order: OrderRequestModel):
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                raise Exception(f"Could not convert market price to float: {str(e)}")
+                                error_msg = str(e) if e else "Unknown error"
+                                raise Exception(f"Could not convert market price to float: {error_msg}")
                         else:
                             raise Exception("No market price available in cache")
                 else:
