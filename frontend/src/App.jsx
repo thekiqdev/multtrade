@@ -971,19 +971,17 @@ function App() {
                   onClick={() => {
                     if (askPrice && askPrice > 0) {
                       // Use the exact same value that's displayed in BTC field
-                      // Get the formatted value from BTC field (which uses formatPrice)
-                      const btcDisplayValue = formatPrice(askPrice)
-                      
-                      // Remove formatting (thousand separators) to get raw number
-                      // The BTC field shows "99.898" but the actual value is 99898
-                      const rawNumber = btcDisplayValue.replace(/\./g, '')
-                      const num = parseFloat(rawNumber)
-                      
+                      // The BTC field shows formatPrice(askPrice) which formats with thousand separator
+                      // Example: askPrice = 99898.5 → formatPrice shows "99.898"
+                      // We need to use the actual askPrice value (not the formatted display)
+                      // but ensure it has 3 decimal places
+                      const num = parseFloat(askPrice)
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places (ignore any extra decimals)
                         const rounded = Math.round(num * 1000) / 1000
                         // Store as raw value with exactly 3 decimal places (no formatting)
-                        // The formatLimitPrice function will format it for display
+                        // Example: 99898.5 → "99898.500"
+                        // The formatLimitPrice function will format it for display (e.g., "99.898.500")
                         const rawValue = rounded.toFixed(3)
                         setLimitPrice(rawValue)
                         setPriceError(null)
