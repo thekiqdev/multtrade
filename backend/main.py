@@ -1196,18 +1196,38 @@ async def create_order(order: OrderRequestModel):
                     cached = price_cache[symbol_upper]
                     if order.side.lower() == "buy":
                         # For buy: use ask_price (or mid_price + 5% to be very aggressive)
-                        market_price = cached.get("ask_price") or cached.get("mid_price")
-                        if market_price:
-                            aggressive_price = float(market_price) * 1.05  # 5% above to ensure execution
+                        ask_price = cached.get("ask_price")
+                        mid_price = cached.get("mid_price")
+                        market_price = ask_price if ask_price else mid_price
+                        if market_price is not None:
+                            # Ensure market_price is float (could be string from cache)
+                            try:
+                                market_price = float(market_price) if not isinstance(market_price, (int, float)) else float(market_price)
+                                if market_price > 0:
+                                    aggressive_price = market_price * 1.05  # 5% above to ensure execution
+                                else:
+                                    raise Exception("Invalid market price value (<= 0)")
+                            except (ValueError, TypeError) as e:
+                                raise Exception(f"Could not convert market price to float: {e}")
                         else:
-                            raise Exception("No market price available")
+                            raise Exception("No market price available in cache")
                     else:
                         # For sell: use bid_price (or mid_price - 5% to be very aggressive)
-                        market_price = cached.get("bid_price") or cached.get("mid_price")
-                        if market_price:
-                            aggressive_price = float(market_price) * 0.95  # 5% below to ensure execution
+                        bid_price = cached.get("bid_price")
+                        mid_price = cached.get("mid_price")
+                        market_price = bid_price if bid_price else mid_price
+                        if market_price is not None:
+                            # Ensure market_price is float (could be string from cache)
+                            try:
+                                market_price = float(market_price) if not isinstance(market_price, (int, float)) else float(market_price)
+                                if market_price > 0:
+                                    aggressive_price = market_price * 0.95  # 5% below to ensure execution
+                                else:
+                                    raise Exception("Invalid market price value (<= 0)")
+                            except (ValueError, TypeError) as e:
+                                raise Exception(f"Could not convert market price to float: {e}")
                         else:
-                            raise Exception("No market price available")
+                            raise Exception("No market price available in cache")
                 else:
                     # Fallback: get from API
                     market_data = await get_market_data(order.symbol)
