@@ -1176,7 +1176,7 @@ async def create_order(order: OrderRequestModel):
             logger.info(f"Final size before sending: {size} (rounded to {sz_decimals_final} decimals)")
         
         # Build order payload according to Hyperliquid API format
-        # Use exchange.order() method which accepts the order payload directly
+        import time
         if order.order_type.lower() == "market":
             # Market order: no price field
             order_payload = {
@@ -1191,7 +1191,6 @@ async def create_order(order: OrderRequestModel):
             logger.info(f"  Is Buy: {is_buy}")
             logger.info(f"  Size: {size}")
             logger.info(f"  Order Type: market (no price)")
-            logger.info(f"Payload: {order_payload}")
         else:
             # Limit order: requires price field
             if not price or price <= 0:
@@ -1213,10 +1212,28 @@ async def create_order(order: OrderRequestModel):
             logger.info(f"  Size: {size}")
             logger.info(f"  Price: {price}")
             logger.info(f"  Order Type: limit")
-            logger.info(f"Payload: {order_payload}")
         
-        # Use exchange.order() method (modern SDK) - accepts order payload directly
-        result = exchange.order(order_payload)
+        # Use exchange.order() with the order payload directly
+        # The SDK accepts a dict with: coin, is_buy, sz, limit_px (optional), order_type
+        # Convert our payload format to SDK format
+        if order.order_type.lower() == "market":
+            # Market order: no limit_px, use order_type = {"market": {}}
+            result = exchange.order(
+                order.symbol,  # coin
+                is_buy,  # is_buy
+                str(size),  # sz (as string)
+                None,  # limit_px (None for market orders)
+                {"market": {}}  # order_type
+            )
+        else:
+            # Limit order: requires limit_px, use order_type = {"limit": {"tif": "Gtc"}}
+            result = exchange.order(
+                order.symbol,  # coin
+                is_buy,  # is_buy
+                str(size),  # sz (as string)
+                str(round(price, 2)),  # limit_px (as string, rounded to 2 decimals)
+                {"limit": {"tif": "Gtc"}}  # order_type
+            )
         
         logger.info("=" * 80)
         logger.info("✅ ORDEM ENVIADA COM SUCESSO!")
