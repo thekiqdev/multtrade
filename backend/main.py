@@ -1117,17 +1117,10 @@ async def create_order(order: OrderRequestModel):
                     logger.warning(f"Price {price} above maximum {max_valid_price}, adjusting...")
                     price = max_valid_price
                 
-                # Round price appropriately - Hyperliquid may require specific precision
-                # For BTC, tick size is typically 0.01 (2 decimal places), but let's be more precise
-                # Round to 2 decimal places first, then check if we need to adjust
-                price = round(price, 2)
-                
-                # Ensure price is a valid float (not too many decimal places)
-                # Hyperliquid may reject prices with too much precision
-                price = float(f"{price:.2f}")
-                
-                logger.info(f"✅ Market order final price: {price} (side: {order.side}, reference: {reference_price:.2f}, range: {min_valid_price:.2f}-{max_valid_price:.2f})")
-                logger.info(f"🔍 Price validation: price={price}, type={type(price)}, is_valid={price > 0 and price >= min_valid_price and price <= max_valid_price}")
+                # For market orders, round to integer (no decimals) - Hyperliquid requirement
+                # Market orders should be sent as whole numbers (e.g., 100795 instead of 100795.11)
+                price = round(price)
+                logger.info(f"✅ Market order final price (rounded to integer): {price} (side: {order.side}, reference: {reference_price:.2f}, range: {min_valid_price:.2f}-{max_valid_price:.2f})")
                     
             except Exception as e:
                 logger.error(f"Error getting market price for market order: {e}")
@@ -1233,7 +1226,7 @@ async def create_order(order: OrderRequestModel):
             size = float(size_str_final)
             logger.info(f"Final size before sending: {size} (rounded to {sz_decimals_final} decimals)")
         
-        # Final validation: ensure price is valid and properly formatted before sending
+        # Final validation: ensure price is valid before sending
         if price is None or price <= 0:
             error_msg = f"Invalid price for order: {price}. Price must be a positive number."
             logger.error(f"❌ {error_msg}")
@@ -1241,20 +1234,6 @@ async def create_order(order: OrderRequestModel):
             raise HTTPException(
                 status_code=400,
                 detail=error_msg
-            )
-        
-        # Ensure price is properly formatted as float with exactly 2 decimal places
-        # This prevents "Order has invalid price" errors from Hyperliquid API
-        try:
-            price = float(price)
-            price = round(price, 2)
-            price = float(f"{price:.2f}")  # Ensure exactly 2 decimal places
-            logger.info(f"🔧 Final price formatting: {price} (type: {type(price).__name__})")
-        except (ValueError, TypeError) as e:
-            logger.error(f"❌ Error formatting price before sending: {e}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid price format: {price}. Error: {str(e)}"
             )
         
         # Ensure size is valid
