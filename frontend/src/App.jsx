@@ -848,14 +848,20 @@ function App() {
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
-                    const rawValue = e.target.value.replace(/[^0-9.]/g, '')
+                    // Use limitPrice (raw value) instead of e.target.value (formatted)
+                    const rawValue = limitPrice.replace(/[^0-9.]/g, '')
                     if (!rawValue || rawValue === '' || rawValue === '.') {
                       setPriceError(null)
                       setLimitPrice('')
                       return
                     }
                     
-                    const num = parseFloat(rawValue)
+                    // Remove thousand separators to get numeric value
+                    const parts = rawValue.split('.')
+                    const integerPart = parts[0].replace(/\./g, '')
+                    const decimalPart = parts[1] || ''
+                    const numericValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
+                    const num = parseFloat(numericValue)
                     if (isNaN(num) || num <= 0) {
                       setPriceError('Digite um preço válido maior que zero')
                       setLimitPrice('')
