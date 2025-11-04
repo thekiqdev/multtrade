@@ -15,6 +15,7 @@ import asyncio
 import json
 import websockets
 from threading import Thread
+import time
 
 # Configurar logging
 logging.basicConfig(
@@ -407,15 +408,23 @@ async def websocket_price_updater():
                         try:
                             await ws.send(json.dumps({"method": "ping"}))
                         except:
-                            pass
+                            # If ping fails, connection is likely broken, break inner loop to reconnect
+                            logger.warning("WebSocket ping failed, connection may be broken. Reconnecting...")
+                            break
                     except Exception as e:
                         logger.error(f"Error processing WebSocket message: {e}")
+                        # If error is connection-related, break to reconnect
+                        if "connection" in str(e).lower() or "closed" in str(e).lower():
+                            logger.warning("WebSocket connection error detected. Reconnecting...")
+                            break
                         await asyncio.sleep(1)
                         
         except Exception as e:
             logger.error(f"WebSocket connection error: {e}")
             if websocket_running:
+                logger.info(f"🔄 Attempting to reconnect WebSocket in 5 seconds...")
                 await asyncio.sleep(5)
+                # Continue loop to reconnect automatically
 
 
 def start_websocket_background():
@@ -423,6 +432,7 @@ def start_websocket_background():
     global websocket_running, websocket_task
     
     if websocket_running:
+        logger.info("WebSocket is already running")
         return
     
     websocket_running = True
@@ -433,6 +443,25 @@ def start_websocket_background():
     websocket_task = Thread(target=run_websocket, daemon=True)
     websocket_task.start()
     logger.info("🚀 WebSocket background task started")
+    
+    # Monitor thread health - restart if it dies (only if WebSocket is still enabled)
+    def monitor_websocket():
+        while True:
+            time.sleep(30)  # Check every 30 seconds
+            if WEBSOCKET_ENABLED and not websocket_running:
+                logger.warning("⚠️ WebSocket stopped but should be running. Auto-restarting...")
+                try:
+                    global websocket_task
+                    websocket_running = True
+                    websocket_task = Thread(target=run_websocket, daemon=True)
+                    websocket_task.start()
+                    logger.info("✅ WebSocket auto-restarted successfully")
+                except Exception as e:
+                    logger.error(f"Error auto-restarting WebSocket: {e}")
+    
+    monitor_thread = Thread(target=monitor_websocket, daemon=True)
+    monitor_thread.start()
+    logger.info("✅ WebSocket monitor started (auto-restart enabled)")
 
 
 def stop_websocket_background():

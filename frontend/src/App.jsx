@@ -242,25 +242,30 @@ function App() {
               wsConnection.onclose = (event) => {
                 console.log('WebSocket disconnected', event.code, event.reason)
                 
-                // If WebSocket closes, try to reconnect first (WebSocket has priority)
-                if (websocketEnabled && reconnectAttempts < maxReconnectAttempts) {
+                // Check if WebSocket is still enabled (it might have been disabled)
+                const currentWebsocketEnabled = localStorage.getItem('websocket_enabled') === 'true'
+                
+                // Always try to reconnect if WebSocket is enabled (no limit)
+                if (currentWebsocketEnabled && websocketEnabled) {
                   reconnectAttempts++
-                  console.log(`🔄 Reconnecting WebSocket (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`)
+                  const delay = Math.min(2000 * reconnectAttempts, 30000) // Max 30 seconds delay
+                  console.log(`🔄 Auto-reconnecting WebSocket (attempt ${reconnectAttempts}) in ${delay/1000}s...`)
+                  
                   reconnectTimeout = setTimeout(() => {
-                    connectWebSocket()
-                  }, 2000 * reconnectAttempts) // Exponential backoff
-                } else {
-                  // Only fallback to REST if max reconnection attempts reached
-                  const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
-                  if (currentRestEnabled && restEnabled && reconnectAttempts >= maxReconnectAttempts) {
-                    console.log('⚠️ WebSocket max reconnection attempts reached, falling back to REST')
-                    websocketFailed = true
-                    if (!priceInterval) {
-                      setupRestPriceSource()
+                    // Double-check WebSocket is still enabled before reconnecting
+                    const stillEnabled = localStorage.getItem('websocket_enabled') === 'true'
+                    if (stillEnabled) {
+                      console.log('🔄 Attempting WebSocket reconnection...')
+                      connectWebSocket()
+                    } else {
+                      console.log('⚠️ WebSocket was disabled, stopping reconnection attempts')
                     }
-                  } else if (currentRestEnabled && restEnabled && !priceInterval) {
-                    // Fallback to REST if WebSocket fails (only if REST is enabled)
-                    console.log('⚠️ WebSocket failed, falling back to REST API')
+                  }, delay)
+                } else {
+                  // WebSocket was disabled, fallback to REST if enabled
+                  const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
+                  if (currentRestEnabled && restEnabled && !priceInterval) {
+                    console.log('⚠️ WebSocket disabled, falling back to REST API')
                     websocketFailed = true
                     setupRestPriceSource()
                   }
