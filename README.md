@@ -1,132 +1,156 @@
-# Hyperliquid Trade Test
+# Mult-Trade
 
-Projeto simples de teste para enviar ordens na Hyperliquid Testnet.
+Sistema de trading automatizado integrado com Hyperliquid, oferecendo interface web moderna para execução de ordens de mercado e limite.
 
-## Estrutura do Projeto
+## 🚀 Funcionalidades
 
-```
-.
-├── backend/          # API FastAPI
-├── frontend/         # Interface React + Tailwind
-└── README.md
-```
+- **Trading em Tempo Real**: Interface moderna para executar ordens de compra/venda
+- **Integração Hyperliquid**: Conectado à API Hyperliquid (testnet/production)
+- **Preços em Tempo Real**: 
+  - REST API com atualização a cada 1.5 segundos
+  - WebSocket para atualizações instantâneas
+  - Cache centralizado para performance otimizada
+- **Tipos de Ordem**: Market e Limit orders
+- **Gerenciamento de Risco**: 
+  - Take Profit e Stop Loss
+  - Cálculo automático de margem e liquidação
+  - Controle de leverage (1x a 50x)
+- **Settings Configuráveis**: Escolha entre REST API ou WebSocket para preços
+- **Logs Detalhados**: Histórico completo de todas as operações
 
-## Pré-requisitos
+## 📋 Pré-requisitos
 
 - Python 3.8+
-- Node.js 18+
+- Node.js 16+
 - npm ou yarn
+- Conta Hyperliquid (testnet ou production)
 
-## Configuração
+## 🛠️ Instalação
 
-### Backend
+### 1. Clone o repositório
 
-**Opção 1: Script Automático (Recomendado)**
-
-No Windows, execute:
 ```bash
-cd backend
-setup.bat
+git clone https://github.com/thekiqdev/multtrade.git
+cd multtrade
 ```
 
-No Linux/Mac, execute:
+### 2. Backend Setup
+
 ```bash
 cd backend
+
+# Windows
+setup.bat
+
+# Linux/Mac
 chmod +x setup.sh
 ./setup.sh
 ```
 
-**Opção 2: Configuração Manual**
+### 3. Configurar Credenciais
 
-1. Navegue até a pasta `backend`:
-   ```bash
-   cd backend
-   ```
+Crie um arquivo `.env` na pasta `backend/`:
 
-2. Crie e ative um ambiente virtual:
-   ```bash
-   # Windows
-   python -m venv venv
-   venv\Scripts\activate
-   
-   # Linux/Mac
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+```env
+ACCOUNT_ADDRESS=sua_wallet_address
+SECRET_KEY=sua_private_key
+```
 
-3. Instale as dependências:
-   ```bash
-   pip install -r requirements.txt
-   ```
+**⚠️ IMPORTANTE**: Nunca commite o arquivo `.env` no repositório!
 
-4. Configure as variáveis de ambiente:
-   - O arquivo `.env` já foi criado a partir do `env.example`
-   - **IMPORTANTE**: Edite o arquivo `.env` e adicione suas credenciais reais:
-     ```
-     ACCOUNT_ADDRESS=0xSEU_ENDERECO
-     SECRET_KEY=SUA_CHAVE_PRIVADA
-     ```
+### 4. Frontend Setup
 
-5. Inicie o servidor:
-   ```bash
-   uvicorn main:app --reload
-   ```
-   
-   O servidor estará rodando em `http://localhost:8000`
+```bash
+cd frontend
+npm install
+```
 
-### Frontend
+## 🚀 Executando
 
-1. Navegue até a pasta `frontend`:
-   ```bash
-   cd frontend
-   ```
+### Iniciar Tudo (Backend + Frontend)
 
-2. Instale as dependências:
-   ```bash
-   npm install
-   ```
+```bash
+# Windows
+start.bat
 
-3. Inicie o servidor de desenvolvimento:
-   ```bash
-   npm run dev
-   ```
-   
-   O frontend estará rodando em `http://localhost:5173`
+# Ou manualmente:
+# Terminal 1 - Backend
+cd backend
+.\venv\Scripts\activate
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
-## Uso
+# Terminal 2 - Frontend
+cd frontend
+npm run dev
+```
 
-1. Certifique-se de que ambos os servidores estão rodando (backend e frontend)
+### Acessar a Aplicação
 
-2. Acesse `http://localhost:5173` no navegador
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
 
-3. Preencha o formulário:
-   - **Par**: Símbolo do ativo (ex: BTC, ETH)
-   - **Preço**: Preço da ordem (para ordens limit)
-   - **Quantidade**: Quantidade a comprar/vender
-   - **Tipo de Ordem**: Limit ou Market
-   - **Lado**: Compra (Buy) ou Venda (Sell)
+## 📁 Estrutura do Projeto
 
-4. Clique em "Enviar Ordem"
+```
+multtrade/
+├── backend/
+│   ├── main.py              # API FastAPI principal
+│   ├── requirements.txt     # Dependências Python
+│   ├── setup.bat/sh        # Scripts de instalação
+│   └── logs/               # Logs de ordens
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx         # Componente principal
+│   │   ├── Settings.jsx    # Página de configurações
+│   │   └── Logs.jsx        # Visualização de logs
+│   └── package.json        # Dependências Node
+└── README.md
+```
 
-5. O resultado será exibido na tela (sucesso ou erro)
+## 🎯 Uso
 
-## Funcionalidades
+1. **Configurar Preços**: Acesse Settings (#settings) para escolher entre REST API ou WebSocket
+2. **Selecionar Ativo**: Escolha BTC, ETH ou SOL
+3. **Definir Parâmetros**: 
+   - Quantidade em USD
+   - Tipo de ordem (Market/Limit)
+   - Take Profit e Stop Loss (opcional)
+   - Leverage
+4. **Executar Ordem**: Clique em Buy ou Sell
 
-- ✅ Interface web moderna com Tailwind CSS
-- ✅ Formulário para criar ordens Limit e Market
-- ✅ Integração com Hyperliquid Testnet
-- ✅ Feedback visual de sucesso/erro
-- ✅ CORS configurado para comunicação frontend/backend
+## 🔧 API Endpoints
 
-## Notas
+- `GET /api/market/{symbol}` - Dados de mercado
+- `GET /api/cache/prices` - Preços do cache
+- `GET /api/cache/prices/{symbol}` - Preço específico do cache
+- `POST /api/order` - Enviar ordem
+- `GET /api/config` - Configuração atual
+- `POST /api/config` - Atualizar configuração
+- `GET /api/logs` - Histórico de logs
+- `WebSocket /ws/price` - Preços em tempo real
 
-- Este projeto utiliza a **Hyperliquid Testnet** para testes
-- Nunca compartilhe suas chaves privadas
-- O arquivo `.env` está no `.gitignore` e não será versionado
-- Certifique-se de ter fundos na testnet antes de enviar ordens
+## 📝 Documentação Adicional
 
-## Tecnologias
+- [Guia de Instalação Completa](backend/INSTALACAO_COMPLETA.md)
+- [Configuração de Credenciais](backend/CREDENCIAIS_HYPERLIQUID.md)
+- [Guia de API e Wallet](backend/API_WALLET_GUIDE.md)
 
-- **Backend**: FastAPI, hyperliquid-python-sdk, python-dotenv
-- **Frontend**: React, Vite, Tailwind CSS, Axios
+## ⚠️ Avisos
 
+- Este projeto está configurado para **testnet** por padrão
+- Para produção, altere `BASE_URL` em `backend/main.py`
+- Sempre teste em testnet antes de usar em produção
+- Mantenha suas credenciais seguras e nunca as exponha
+
+## 📄 Licença
+
+Este projeto é open source.
+
+## 🤝 Contribuindo
+
+Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou pull requests.
+
+## 📧 Contato
+
+Repositório: https://github.com/thekiqdev/multtrade
