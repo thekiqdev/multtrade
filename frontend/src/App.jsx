@@ -73,11 +73,18 @@ function App() {
               wsConnection.onopen = () => {
                 // Only log once per connection
                 if (!wsConnection._connectedLogged) {
-                  console.log('✅ WebSocket connected for price updates')
+                  console.log('✅ WebSocket connected for price updates - PRIORITY MODE ACTIVE')
                   wsConnection._connectedLogged = true
                 }
                 reconnectAttempts = 0 // Reset on successful connection
                 websocketFailed = false // Reset failure flag
+                
+                // Stop REST polling immediately - WebSocket has priority
+                if (priceInterval) {
+                  console.log('🛑 Stopping REST polling - WebSocket has priority and is connected')
+                  clearInterval(priceInterval)
+                  priceInterval = null
+                }
                 
                 // Always get initial price from cache (source of truth)
                 axios.get(getApiUrl(`/api/cache/prices/${symbol}`))
@@ -235,25 +242,28 @@ function App() {
               wsConnection.onclose = (event) => {
                 console.log('WebSocket disconnected', event.code, event.reason)
                 
-                // If WebSocket closes and we have REST enabled, fallback to REST
-                const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
-                if (currentRestEnabled && restEnabled && reconnectAttempts >= maxReconnectAttempts) {
-                  console.log('⚠️ WebSocket max reconnection attempts reached, falling back to REST')
-                  websocketFailed = true
-                  if (!priceInterval) {
-                    setupRestPriceSource()
-                  }
-                } else if (websocketEnabled && reconnectAttempts < maxReconnectAttempts) {
+                // If WebSocket closes, try to reconnect first (WebSocket has priority)
+                if (websocketEnabled && reconnectAttempts < maxReconnectAttempts) {
                   reconnectAttempts++
-                  console.log(`Reconnecting WebSocket (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`)
+                  console.log(`🔄 Reconnecting WebSocket (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`)
                   reconnectTimeout = setTimeout(() => {
                     connectWebSocket()
                   }, 2000 * reconnectAttempts) // Exponential backoff
-                } else if (currentRestEnabled && restEnabled && !priceInterval) {
-                  // Fallback to REST if WebSocket fails (only if REST is enabled)
-                  console.log('⚠️ WebSocket failed, falling back to REST API')
-                  websocketFailed = true
-                  setupRestPriceSource()
+                } else {
+                  // Only fallback to REST if max reconnection attempts reached
+                  const currentRestEnabled = localStorage.getItem('rest_enabled') === 'true'
+                  if (currentRestEnabled && restEnabled && reconnectAttempts >= maxReconnectAttempts) {
+                    console.log('⚠️ WebSocket max reconnection attempts reached, falling back to REST')
+                    websocketFailed = true
+                    if (!priceInterval) {
+                      setupRestPriceSource()
+                    }
+                  } else if (currentRestEnabled && restEnabled && !priceInterval) {
+                    // Fallback to REST if WebSocket fails (only if REST is enabled)
+                    console.log('⚠️ WebSocket failed, falling back to REST API')
+                    websocketFailed = true
+                    setupRestPriceSource()
+                  }
                 }
               }
             } catch (err) {
@@ -415,9 +425,20 @@ function App() {
     setupPriceSource()
     
     // Separate polling for askPrice from cache (ensures real-time updates)
+    // BUT: Only if WebSocket is NOT active (WebSocket has priority)
     const cachePollingInterval = setInterval(async () => {
       try {
-        const cacheResponse = await axios.get(`http://localhost:8000/api/cache/prices/${symbol}`)
+        // Check if WebSocket is active and working - if so, skip REST polling
+        const storedWebsocket = localStorage.getItem('websocket_enabled')
+        const websocketActive = storedWebsocket === 'true'
+        
+        // If WebSocket is enabled and connected, don't poll cache (WebSocket has priority)
+        if (websocketActive && wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+          return // WebSocket is active and working - skip REST polling
+        }
+        
+        // Only poll cache if WebSocket is disabled or not working
+        const cacheResponse = await axios.get(getApiUrl(`/api/cache/prices/${symbol}`))
         if (cacheResponse.data && cacheResponse.data.success && cacheResponse.data.data) {
           const cacheData = cacheResponse.data.data
           
@@ -428,7 +449,7 @@ function App() {
               setAskPrice(prev => {
                 // Always update, even if value is the same (forces re-render)
                 if (prev !== newMidPrice) {
-                  console.log('💰 AskPrice atualizado do cache (MID_PRICE):', prev?.toFixed(2), '→', newMidPrice.toFixed(2))
+                  console.log('💰 AskPrice atualizado do cache (MID_PRICE) - REST fallback:', prev?.toFixed(2), '→', newMidPrice.toFixed(2))
                   return newMidPrice
                 }
                 // Even if same, return new value to force re-render
@@ -452,7 +473,7 @@ function App() {
           }
         }
       } catch (err) {
-        console.error('Error polling cache:', err)
+        // Silent fail - don't spam console
       }
     }, 500) // Poll every 0.5 seconds for faster updates
     
