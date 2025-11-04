@@ -926,6 +926,15 @@ function App() {
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
+                    // Limit decimal to 3 digits when user leaves field
+                    if (limitPrice && limitPrice.includes('.')) {
+                      const parts = limitPrice.split('.')
+                      const integerPart = parts[0]
+                      const decimalPart = parts[1] || ''
+                      const limitedDecimal = decimalPart.slice(0, 3)
+                      const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
+                      setLimitPrice(finalValue)
+                    }
                     // Just clear any previous errors - validation will be done by backend
                     setPriceError(null)
                   }}
