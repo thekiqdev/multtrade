@@ -754,20 +754,17 @@ function App() {
     const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // Format integer part with thousand separator if 4+ digits
-    // This ensures values from Mid button (like 99355) are displayed correctly as 99.355
-    let formattedInteger = integerPart
-    if (integerPart.length >= 4) {
-      formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    }
+    // Don't format integer part during typing - just return raw value
+    // Formatting causes cursor issues and field freezing
+    // Formatting will be applied on blur only
     
     // Allow decimal part to continue - don't limit during typing
     // Only limit to 3 digits for display (user can type more)
     // This allows continuous typing: 11.111 → 11.1111 → 11.11111
     const limitedDecimal = decimalPart.length > 3 ? decimalPart.slice(0, 3) : decimalPart
     
-    // Combine - return formatted integer part with decimal
-    return `${formattedInteger}.${limitedDecimal}`
+    // Combine - return raw integer part without formatting
+    return `${integerPart}.${limitedDecimal}`
   }
 
   const formatNumber = (num) => {
@@ -972,15 +969,15 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (midPrice && midPrice > 0) {
-                      // Use the exact midPrice value (same as shown in BTC field)
-                      // Round to 3 decimal places to match Limit Price format
-                      const num = parseFloat(midPrice)
+                    // Use askPrice (which is midPrice) - same value shown in BTC field
+                    // askPrice is already the correct mid_price value
+                    if (askPrice && askPrice > 0) {
+                      const num = parseFloat(askPrice)
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places
                         const rounded = Math.round(num * 1000) / 1000
                         // Store as raw value with exactly 3 decimal places (no formatting)
-                        // Example: 99898.5 → "99898.500"
+                        // Example: 99.355 → "99.355"
                         // The formatLimitPrice function will format it for display when needed
                         const rawValue = rounded.toFixed(3)
                         setLimitPrice(rawValue)
@@ -988,7 +985,7 @@ function App() {
                       }
                     }
                   }}
-                  disabled={!midPrice || midPrice <= 0}
+                  disabled={!askPrice || askPrice <= 0}
                   className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0"
                   title="Usar preço atual (Mid Price)"
                 >
