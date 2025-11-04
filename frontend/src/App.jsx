@@ -917,6 +917,22 @@ function App() {
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
+                    // Ensure 3 decimal places on blur
+                    if (limitPrice && limitPrice !== '') {
+                      const cleaned = limitPrice.replace(/[^0-9.]/g, '')
+                      const lastDotIndex = cleaned.lastIndexOf('.')
+                      
+                      if (lastDotIndex === -1) {
+                        // No decimal point - add .000
+                        setLimitPrice(`${cleaned}.000`)
+                      } else {
+                        // Has decimal point - ensure 3 decimal places
+                        const integerPart = cleaned.substring(0, lastDotIndex).replace(/\./g, '')
+                        const decimalPart = cleaned.substring(lastDotIndex + 1)
+                        const paddedDecimal = decimalPart.slice(0, 3).padEnd(3, '0')
+                        setLimitPrice(`${integerPart}.${paddedDecimal}`)
+                      }
+                    }
                     // Just clear any previous errors - validation will be done by backend
                     setPriceError(null)
                   }}
