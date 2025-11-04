@@ -1232,7 +1232,7 @@ async def create_order(order: OrderRequestModel):
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
                                 error_detail = str(e) if e else "Unknown error"
-                                logger.error(f"Error converting market_price: {error_detail}, type: {type(market_price)}, value: {repr(market_price)}")
+                                logger.error(f"Error converting market_price: {error_detail}, type: {str(type(market_price))}, value: {str(repr(market_price))}")
                                 raise Exception(f"Could not convert market price to float: {error_detail}")
                         else:
                             raise Exception("No market price available in cache")
@@ -1264,7 +1264,7 @@ async def create_order(order: OrderRequestModel):
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
                                 error_detail = str(e) if e else "Unknown error"
-                                logger.error(f"Error converting market_price: {error_detail}, type: {type(market_price)}, value: {repr(market_price)}")
+                                logger.error(f"Error converting market_price: {error_detail}, type: {str(type(market_price))}, value: {str(repr(market_price))}")
                                 raise Exception(f"Could not convert market price to float: {error_detail}")
                         else:
                             raise Exception("No market price available in cache")
