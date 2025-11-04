@@ -1290,10 +1290,16 @@ async def create_order(order: OrderRequestModel):
                 if aggressive_price is None:
                     raise Exception("aggressive_price was not set")
                 
-                # Ensure it's a float before rounding
-                aggressive_price = float(aggressive_price)
-                aggressive_price = round(aggressive_price, 2)
-                logger.info(f"Using aggressive price for market order: {aggressive_price}")
+                # Ensure it's a float before rounding and logging
+                try:
+                    aggressive_price = float(aggressive_price)
+                    aggressive_price = round(float(aggressive_price), 2)
+                    # Ensure it's still float after rounding
+                    aggressive_price = float(aggressive_price)
+                    logger.info(f"Using aggressive price for market order: {aggressive_price}")
+                except (ValueError, TypeError) as format_err:
+                    logger.error(f"Error formatting aggressive_price: {format_err}, type: {type(aggressive_price)}, value: {aggressive_price}")
+                    raise Exception(f"Could not format aggressive price: {str(format_err)}")
                 
                 # Use IOC (Immediate or Cancel) limit order as market order
                 result = exchange.order(
