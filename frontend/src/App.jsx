@@ -768,8 +768,9 @@ function App() {
     }
     
     // Allow decimal part to continue - don't limit during typing
-    // Only limit when displaying final value
-    const limitedDecimal = decimalPart.slice(0, 3)
+    // Only limit to 3 digits for display (user can type more)
+    // This allows continuous typing: 11.111 → 11.1111 → 11.11111
+    const limitedDecimal = decimalPart.length > 3 ? decimalPart.slice(0, 3) : decimalPart
     
     // Combine
     return `${formattedInteger}.${limitedDecimal}`
@@ -917,14 +918,8 @@ function App() {
                     // IMPORTANT: Allow unlimited decimal digits during typing
                     // Only limit to 3 when storing final value (onBlur or submit)
                     // This allows continuous typing: 11.111 → 11.1111 → 11.11111
-                    // But we'll limit to 3 for storage to match backend requirements
-                    const limitedDecimal = decimalPart.slice(0, 3)
-                    
-                    // Combinar - mantém valor raw sem formatação de milhares na parte inteira
-                    // Permite digitar: 111.111, 1111.111, 11111.111
-                    // Exemplo: "111.111" → armazena "111.111"
-                    // Exemplo: "11.111.111" → armazena "11111.111" (remove separadores de milhares)
-                    const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
+                    // Store full decimal part during typing, limit only on display
+                    const finalValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
                     
                     setPriceError(null)
                     // Armazena o valor raw (sem formatação de milhares na parte inteira)
