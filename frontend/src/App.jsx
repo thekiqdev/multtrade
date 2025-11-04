@@ -636,18 +636,44 @@ function App() {
             // No decimal point - remove all dots (thousand separators)
             parsedPrice = parseFloat(cleaned.replace(/\./g, ''))
           } else {
-            // Has decimal point - last dot is decimal separator
-            const integerPartRaw = cleaned.substring(0, lastDotIndex)
-            const integerPart = integerPartRaw.replace(/\./g, '') // Remove thousand separators
-            const decimalPart = cleaned.substring(lastDotIndex + 1)
-            const numericValue = `${integerPart}.${decimalPart}`
-            parsedPrice = parseFloat(numericValue)
+            // Has dots - need to determine if last dot is decimal separator or thousand separator
+            // Strategy: If the part after the last dot has 3 digits, it's likely a thousand separator
+            // If it has 1-2 digits, it's likely a decimal separator
+            // But we also check against reference price to make intelligent decision
+            const afterLastDot = cleaned.substring(lastDotIndex + 1)
+            const beforeLastDot = cleaned.substring(0, lastDotIndex)
+            
+            // Count dots in the integer part
+            const dotsInInteger = (beforeLastDot.match(/\./g) || []).length
+            
+            // If there are multiple dots OR if the part after last dot has 3 digits,
+            // treat all dots as thousand separators
+            if (dotsInInteger > 0 || afterLastDot.length === 3) {
+              // All dots are thousand separators - remove all dots
+              parsedPrice = parseFloat(cleaned.replace(/\./g, ''))
+            } else {
+              // Last dot is decimal separator
+              const integerPart = beforeLastDot.replace(/\./g, '') // Remove thousand separators
+              const decimalPart = afterLastDot
+              const numericValue = `${integerPart}.${decimalPart}`
+              parsedPrice = parseFloat(numericValue)
+              
+              // If parsed price is too small compared to reference price, 
+              // likely all dots were thousand separators
+              if (midPrice && midPrice > 0 && parsedPrice < midPrice * 0.1) {
+                // Re-interpret as all thousand separators
+                parsedPrice = parseFloat(cleaned.replace(/\./g, ''))
+                console.log('🔄 Re-interpreted as thousand separators (price too small)')
+              }
+            }
           }
           
           console.log('🔍 Price parsing result:', {
             original: limitPrice,
             cleaned: cleaned,
-            parsed: parsedPrice
+            parsed: parsedPrice,
+            midPrice: midPrice,
+            ratio: midPrice ? (parsedPrice / midPrice) : null
           })
           
           if (isNaN(parsedPrice) || parsedPrice <= 0) {
