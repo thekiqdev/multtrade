@@ -635,26 +635,13 @@ function App() {
       // Calculate size from USD quantity
       const size = askPrice ? parseFloat(quantityUsd) / askPrice : parseFloat(quantityUsd) / 100000
 
-      // Parse limitPrice if it's a formatted string
-      let parsedLimitPrice = null
-      if (orderType === 'limit' && limitPrice) {
-        // Remove formatting and parse (handle both formatted and raw)
-        const cleanPrice = limitPrice.toString().replace(/[^\d,.-]/g, '').replace(',', '.')
-        parsedLimitPrice = parseFloat(cleanPrice)
-        if (isNaN(parsedLimitPrice) || parsedLimitPrice <= 0) {
-          setError('Preço limit inválido')
-          setLoading(false)
-          return
-        }
-      }
-
       const orderData = {
         symbol: symbol,
         side: side,
         order_type: orderType,
         quantity_usd: parseFloat(quantityUsd),
         size: size,
-        price: parsedLimitPrice,
+        price: orderType === 'limit' && limitPrice ? parseFloat(limitPrice.replace(/[^0-9.]/g, '')) : null,
         leverage: leverage,
         takeprofit: takeprofit ? parseFloat(takeprofit) : null,
         stoploss: stoploss ? parseFloat(stoploss) : null
@@ -678,12 +665,12 @@ function App() {
   }
 
   const formatPrice = (price) => {
-    if (!price) return '$0'
-    // Format as Brazilian: $100.789 (point for thousands, no decimals)
-    // Remove decimal part and format with point separator
-    const integerPart = Math.floor(price)
-    const formatted = integerPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    return `$${formatted}`
+    if (!price) return '0.000'
+    // Format with 3 decimal places for crypto prices (BTC)
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3
+    }).format(price)
   }
 
   const formatNumber = (num) => {
@@ -779,7 +766,7 @@ function App() {
           {/* Ask Price - Always from cache, real value */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">
-              Ask Price {askPrice && `(Mid: ${formatPrice(askPrice)})`}
+              Ask Price {askPrice && `(Mid: ${askPrice.toFixed(3)})`}
             </label>
             <div className="relative">
               <input
@@ -799,45 +786,34 @@ function App() {
               <div className="relative">
                 <input
                   type="text"
-                  value={limitPrice ? formatPrice(parseFloat(limitPrice.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0) : ''}
+                  value={limitPrice ? formatPrice(parseFloat(limitPrice)) : ''}
                   onChange={(e) => {
-                    let value = e.target.value
+                    const value = e.target.value
                     setPriceError(null)
                     
-                    // Remove $ and formatting for parsing
-                    value = value.replace(/[^\d,.-]/g, '')
-                    // Replace comma with dot for parsing
-                    const numValue = value.replace(',', '.')
-                    
                     // Allow typing - will validate on blur
-                    if (value === '' || value === '.' || value === ',') {
-                      setLimitPrice('')
+                    if (value === '' || value === '.') {
+                      setLimitPrice(value)
                       return
                     }
                     
-                    const num = parseFloat(numValue)
+                    const num = parseFloat(value)
                     if (!isNaN(num) && num > 0) {
-                      // Store raw number for calculations
-                      setLimitPrice(numValue)
+                      setLimitPrice(value)
                     } else if (value === '') {
-                      setLimitPrice('')
+                      setLimitPrice(value)
                     }
                   }}
                   onBlur={(e) => {
-                    let value = e.target.value
+                    const value = e.target.value
                     if (!value || value === '') {
                       setPriceError(null)
-                      setLimitPrice('')
                       return
                     }
                     
-                    // Parse the formatted value
-                    const numValue = value.replace(/[^\d,.-]/g, '').replace(',', '.')
-                    const num = parseFloat(numValue)
-                    
+                    const num = parseFloat(value)
                     if (isNaN(num) || num <= 0) {
                       setPriceError('Digite um preço válido maior que zero')
-                      setLimitPrice('')
                       return
                     }
                     
@@ -847,14 +823,15 @@ function App() {
                     const roundedStr = rounded.toFixed(2)
                     
                     // Validate price is within 80% of reference price (20% to 180% of mid price)
+                    // Hyperliquid requires price to be within 80% of reference price
                     if (midPrice && midPrice > 0) {
                       const minPrice = midPrice * 0.2  // 20% of reference
                       const maxPrice = midPrice * 1.8  // 180% of reference
                       
                       if (rounded < minPrice || rounded > maxPrice) {
                         setPriceError(
-                          `Preço deve estar entre ${formatPrice(minPrice)} e ${formatPrice(maxPrice)} ` +
-                          `(preço atual: ${formatPrice(midPrice)})`
+                          `Preço deve estar entre ${minPrice.toFixed(2)} e ${maxPrice.toFixed(2)} ` +
+                          `(preço atual: ${midPrice.toFixed(2)})`
                         )
                         // Suggest valid price
                         const suggestedPrice = rounded < minPrice 
@@ -867,20 +844,23 @@ function App() {
                     
                     // Check if the rounded value differs from input
                     if (Math.abs(num - rounded) > 0.0001) {
-                      setPriceError(`Preço ajustado para ${formatPrice(rounded)} (tick size: 0.01)`)
+                      setPriceError(`Preço ajustado para ${roundedStr} (tick size: 0.01)`)
                       setLimitPrice(roundedStr)
                     } else {
                       setLimitPrice(roundedStr)
                       setPriceError(null)
                     }
                   }}
+                  step="0.01"
+                  min="0"
                   className={`w-full bg-gray-900 border rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 ${
                     priceError 
                       ? 'border-orange-500 focus:ring-orange-500' 
                       : 'border-gray-700 focus:ring-blue-500'
                   }`}
-                  placeholder={askPrice ? formatPrice(askPrice) : 'Digite o preço'}
+                  placeholder={askPrice ? formatPrice(askPrice) : '100.789'}
                 />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
               </div>
               {priceError && (
                 <div className="mt-1 flex items-start gap-2 text-xs">
@@ -892,7 +872,7 @@ function App() {
                 Preço deve ter 2 casas decimais e estar dentro de 80% do preço de referência
                 {midPrice && (
                   <span className="block mt-1">
-                    Range válido: {formatPrice(midPrice * 0.2)} - {formatPrice(midPrice * 1.8)}
+                    Range válido: ${(midPrice * 0.2).toFixed(2)} - ${(midPrice * 1.8).toFixed(2)}
                   </span>
                 )}
               </p>
