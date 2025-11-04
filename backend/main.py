@@ -1016,11 +1016,12 @@ async def create_order(order: OrderRequestModel):
         
         # Build order type
         if order.order_type.lower() == "market":
-            order_type = {"market": {}}
-            # For market orders, price should be 0, not None (to avoid format string errors)
+            # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel) and price 0
+            order_type = {"limit": {"tif": "Ioc"}}  # Immediate or Cancel for market orders
+            # For market orders, price should be 0 (not None) to avoid format string errors
             price = 0
         else:
-            order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel
+            order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel for limit orders
             # For limit orders, validate and round price to tick size
             # Hyperliquid BTC tick size is 0.01 (2 decimal places)
             # Round to 2 decimal places to match valid tick size
