@@ -978,10 +978,22 @@ function App() {
                         // Round to 3 decimal places (ignore any extra decimals)
                         // This ensures the value matches what's shown in BTC field
                         const rounded = Math.round(num * 1000) / 1000
-                        // Store as raw value with exactly 3 decimal places (no thousand separators)
-                        // The formatLimitPrice function will handle the display formatting
+                        // Store as raw value with exactly 3 decimal places
                         const rawValue = rounded.toFixed(3)
-                        setLimitPrice(rawValue)
+                        
+                        // Format the value for immediate display (same format as BTC field)
+                        // Format with thousand separator and 3 decimals
+                        const priceStr = rawValue
+                        const parts = priceStr.split('.')
+                        const integerPart = parts[0]
+                        const decimalPart = parts[1] || '000'
+                        
+                        // Format integer with thousand separator (same as BTC field)
+                        const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                        const formattedValue = `${formattedInteger}.${decimalPart}`
+                        
+                        // Store formatted value so it displays correctly
+                        setLimitPrice(formattedValue)
                         setPriceError(null)
                       }
                     }
