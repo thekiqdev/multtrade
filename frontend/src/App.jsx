@@ -743,27 +743,30 @@ function App() {
     const lastDotIndex = cleaned.lastIndexOf('.')
     
     if (lastDotIndex === -1) {
-      // No decimal point - format with thousand separator if 4+ digits
-      // This allows: 111 → 111, 1111 → 1.111, 11111 → 11.111, 111111 → 111.111
-      if (cleaned.length >= 4) {
-        return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+      // No decimal point - format as integer with thousand separator
+      // Format immediately to allow typing: 111 → 111.111 (separador de milhares)
+      if (cleaned.length <= 3) {
+        return cleaned
       }
-      return cleaned
+      return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     }
     
     // Split: integer part (before last dot) and decimal part (after last dot)
     const integerPartRaw = cleaned.substring(0, lastDotIndex)
-    const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part (thousand separators)
+    const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // DON'T format integer part with thousand separators - keep it raw for free typing
-    // This allows: 111.111, 1111.111, 11111.111, 111111.111
-    const formattedInteger = integerPart
+    // Format integer part with thousand separator (point) immediately
+    // This allows typing: 111.111, 1111.111, 11111.111
+    let formattedInteger = integerPart
+    if (integerPart.length > 3) {
+      formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    }
     
-    // Limit decimal part to 3 digits and pad with zeros if needed
-    const limitedDecimal = decimalPart.slice(0, 3).padEnd(3, '0')
+    // Limit decimal part to 3 digits
+    const limitedDecimal = decimalPart.slice(0, 3)
     
-    // Combine - return raw format without thousand separators, always with 3 decimals
+    // Combine
     return `${formattedInteger}.${limitedDecimal}`
   }
 
@@ -892,8 +895,8 @@ function App() {
                     const lastDotIndex = cleanedValue.lastIndexOf('.')
                     
                     if (lastDotIndex === -1) {
-                      // Sem ponto decimal - armazena raw (sem formatação)
-                      // A formatação será aplicada no formatLimitPrice
+                      // Sem ponto decimal - apenas números (armazena raw, sem formatação)
+                      // Permite digitação contínua: 111 → 1111 → 11111 → 111111
                       setPriceError(null)
                       setLimitPrice(cleanedValue)
                       return
@@ -906,13 +909,13 @@ function App() {
                     const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira (separadores de milhares)
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
                     
-                    // Limitar a 3 casas decimais e preencher com zeros se necessário
-                    const limitedDecimal = decimalPart.slice(0, 3).padEnd(3, '0')
+                    // Limitar a 3 casas decimais
+                    const limitedDecimal = decimalPart.slice(0, 3)
                     
-                    // Combinar - mantém valor raw sem formatação de milhares, sempre com 3 decimais
+                    // Combinar - mantém valor raw sem formatação de milhares
                     // IMPORTANTE: Armazena como "95056.050" (sem pontos de milhares na parte inteira)
                     // Exemplo: se usuário digita "95.056.050", armazena como "95056.050"
-                    const finalValue = `${integerPart}.${limitedDecimal}`
+                    const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
                     
                     setPriceError(null)
                     // Armazena o valor raw (sem formatação de milhares) para processamento
@@ -920,26 +923,6 @@ function App() {
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
-                    // Ensure 3 decimal places on blur (only if has decimal point)
-                    if (limitPrice && limitPrice !== '') {
-                      const cleaned = limitPrice.replace(/[^0-9.]/g, '')
-                      const lastDotIndex = cleaned.lastIndexOf('.')
-                      
-                      if (lastDotIndex === -1) {
-                        // No decimal point - just format with thousand separator if 4+ digits
-                        // Don't add .000 - keep as integer
-                        if (cleaned.length >= 4) {
-                          const formatted = cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-                          setLimitPrice(formatted)
-                        }
-                      } else {
-                        // Has decimal point - ensure 3 decimal places
-                        const integerPart = cleaned.substring(0, lastDotIndex).replace(/\./g, '')
-                        const decimalPart = cleaned.substring(lastDotIndex + 1)
-                        const paddedDecimal = decimalPart.slice(0, 3).padEnd(3, '0')
-                        setLimitPrice(`${integerPart}.${paddedDecimal}`)
-                      }
-                    }
                     // Just clear any previous errors - validation will be done by backend
                     setPriceError(null)
                   }}
@@ -948,7 +931,17 @@ function App() {
                       ? 'border-orange-500 focus:ring-orange-500' 
                       : 'border-gray-700 focus:ring-blue-500'
                   }`}
-                  placeholder={askPrice ? askPrice.toFixed(3) : '111111.111'}
+                  placeholder={askPrice ? (() => {
+                    // Format with thousand separator and decimal places
+                    const priceStr = askPrice.toString()
+                    const parts = priceStr.split('.')
+                    const integerPart = parts[0]
+                    const decimalPart = parts[1] || '000'
+                    
+                    // Format integer with thousand separator
+                    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                    return `${formattedInteger}.${decimalPart.substring(0, 3)}`
+                  })() : '100.000'}
                 />
               </div>
               {priceError && (
