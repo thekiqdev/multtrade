@@ -1059,35 +1059,78 @@ async def create_order(order: OrderRequestModel):
             except Exception as e:
                 print(f"Warning: Could not set leverage: {e}")
         
-        # Get asset_index for the symbol (required for post_action)
-        asset_index = None
-        if info_client:
-            try:
-                meta = info_client.meta()
-                if meta and "universe" in meta:
-                    for i, asset in enumerate(meta["universe"]):
-                        if asset.get("name") == order.symbol.upper():
-                            asset_index = i
-                            break
-            except Exception as e:
-                logger.warning(f"Could not get asset_index: {e}")
-        
-        if asset_index is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Could not find asset_index for symbol {order.symbol}. Please check if the symbol is valid."
-            )
-        
-        logger.info(f"Using asset_index {asset_index} for {order.symbol}")
-        
-        # Build order payload based on order type
+        # Build order type
         if order.order_type.lower() == "market":
-            # Market orders: NO price field, use {"market": {}}
-            order_type = {"market": {}}
-            price = None  # Market orders don't use price
-            logger.info("Market order: using market order type (no price field)")
+            # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel)
+            order_type = {"limit": {"tif": "Ioc"}}  # Immediate or Cancel for market orders
+            
+            # For market orders, use real-time prices from cache (updated by WebSocket)
+            # Use ask_price for BUY orders (to match sellers) and bid_price for SELL orders (to match buyers)
+            try:
+                symbol_upper = order.symbol.upper()
+                
+                # Get price from cache (updated by WebSocket in real-time)
+                if symbol_upper in price_cache:
+                    cached = price_cache[symbol_upper]
+                    mid_price = cached.get("mid_price")
+                    bid_price = cached.get("bid_price")
+                    ask_price = cached.get("ask_price")
+                    
+                    if order.side.lower() == "buy":
+                        # For BUY orders, use ask_price (what sellers are asking) to ensure immediate execution
+                        if ask_price and ask_price > 0:
+                            price = float(ask_price)
+                            logger.info(f"Market BUY order using ask_price from cache: {price}")
+                        elif mid_price and mid_price > 0:
+                            # Fallback: use mid_price + 0.5% to be aggressive
+                            price = float(mid_price) * 1.005
+                            logger.info(f"Market BUY order using mid_price + 0.5% from cache: {price} (mid: {mid_price})")
+                        else:
+                            raise Exception("No valid ask_price or mid_price in cache for BUY order")
+                    else:  # sell
+                        # For SELL orders, use bid_price (what buyers are bidding) to ensure immediate execution
+                        if bid_price and bid_price > 0:
+                            price = float(bid_price)
+                            logger.info(f"Market SELL order using bid_price from cache: {price}")
+                        elif mid_price and mid_price > 0:
+                            # Fallback: use mid_price - 0.5% to be aggressive
+                            price = float(mid_price) * 0.995
+                            logger.info(f"Market SELL order using mid_price - 0.5% from cache: {price} (mid: {mid_price})")
+                        else:
+                            raise Exception("No valid bid_price or mid_price in cache for SELL order")
+                else:
+                    raise Exception(f"No cached price data available for {symbol_upper}")
+                    
+                # Round to 2 decimal places for price
+                if price > 0:
+                    price = round(price, 2)
+                    logger.info(f"Market order final price: {price} (side: {order.side}, from cache)")
+                else:
+                    raise Exception("Calculated price is invalid")
+                    
+            except Exception as e:
+                logger.error(f"Error getting market price from cache for market order: {e}")
+                # Try to fetch fresh data as fallback
+                try:
+                    market_data_result = await get_market_data(order.symbol)
+                    if market_data_result:
+                        if order.side.lower() == "buy":
+                            price = market_data_result.get("ask_price") or (market_data_result.get("mid_price", 0) * 1.005)
+                        else:
+                            price = market_data_result.get("bid_price") or (market_data_result.get("mid_price", 0) * 0.995)
+                        price = round(float(price), 2) if price > 0 else None
+                        if price and price > 0:
+                            logger.info(f"Market order using fallback price from fresh API: {price}")
+                        else:
+                            raise
+                    else:
+                        raise
+                except:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {str(e)}"
+                    )
         else:
-            # Limit orders: require price field, use {"limit": {"tif": "Gtc"}}
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel for limit orders
             # For limit orders, validate and round price to tick size
             # Hyperliquid BTC tick size is 0.01 (2 decimal places)
@@ -1102,38 +1145,33 @@ async def create_order(order: OrderRequestModel):
                 # Hyperliquid requires: price cannot be more than 80% away from reference
                 try:
                     market_data = info_client.all_mids() if info_client else None
-                    if market_data and asset_index is not None:
-                        # Handle both dict and list responses
-                        if isinstance(market_data, dict):
-                            # Try to get reference price by asset_index
-                            market_list = list(market_data.values()) if market_data else []
-                            if asset_index < len(market_list):
-                                reference_price = float(market_list[asset_index])
-                            else:
-                                reference_price = None
-                        elif isinstance(market_data, list) and asset_index < len(market_data):
-                            reference_price = float(market_data[asset_index])
-                        else:
-                            reference_price = None
-                        
-                        if reference_price and reference_price > 0:
-                            min_price = reference_price * 0.2  # 20% of reference
-                            max_price = reference_price * 1.8  # 180% of reference
-                            
-                            if price < min_price or price > max_price:
-                                error_msg = (
-                                    f"Order price cannot be more than 80% away from the reference price. "
-                                    f"Reference price: {reference_price:.2f}, "
-                                    f"Valid range: {min_price:.2f} - {max_price:.2f}, "
-                                    f"Your price: {price:.2f}"
-                                )
-                                logger.error(f"❌ {error_msg}")
-                                log_order_request(order_data, error=error_msg)
-                                raise HTTPException(
-                                    status_code=400,
-                                    detail=error_msg
-                                )
-                            logger.info(f"Price validation OK: {price:.2f} is within range ({min_price:.2f} - {max_price:.2f})")
+                    meta = info_client.meta() if info_client else None
+                    if meta and market_data:
+                        asset_index = None
+                        for i, asset in enumerate(meta.get("universe", [])):
+                            if asset["name"] == order.symbol:
+                                asset_index = i
+                                break
+                        if asset_index is not None and asset_index < len(market_data):
+                            reference_price = market_data[asset_index]
+                            if reference_price and reference_price > 0:
+                                min_price = reference_price * 0.2  # 20% of reference
+                                max_price = reference_price * 1.8  # 180% of reference
+                                
+                                if price < min_price or price > max_price:
+                                    error_msg = (
+                                        f"Order price cannot be more than 80% away from the reference price. "
+                                        f"Reference price: {reference_price:.2f}, "
+                                        f"Valid range: {min_price:.2f} - {max_price:.2f}, "
+                                        f"Your price: {price:.2f}"
+                                    )
+                                    logger.error(f"❌ {error_msg}")
+                                    log_order_request(order_data, error=error_msg)
+                                    raise HTTPException(
+                                        status_code=400,
+                                        detail=error_msg
+                                    )
+                                logger.info(f"Price validation OK: {price:.2f} is within range ({min_price:.2f} - {max_price:.2f})")
                 except HTTPException:
                     raise
                 except Exception as e:
@@ -1143,14 +1181,15 @@ async def create_order(order: OrderRequestModel):
                 # If no price provided for limit order, get current market price
                 try:
                     market_data = info_client.all_mids() if info_client else None
-                    if market_data and asset_index is not None:
-                        # Handle both dict and list responses
-                        if isinstance(market_data, dict):
-                            market_list = list(market_data.values()) if market_data else []
-                            if asset_index < len(market_list):
-                                price = float(market_list[asset_index])
-                        elif isinstance(market_data, list) and asset_index < len(market_data):
-                            price = float(market_data[asset_index])
+                    meta = info_client.meta() if info_client else None
+                    if meta and market_data:
+                        asset_index = None
+                        for i, asset in enumerate(meta.get("universe", [])):
+                            if asset["name"] == order.symbol:
+                                asset_index = i
+                                break
+                        if asset_index is not None and asset_index < len(market_data):
+                            price = market_data[asset_index]
                 except Exception as e:
                     print(f"Warning: Could not get market price: {e}")
         
@@ -1175,212 +1214,55 @@ async def create_order(order: OrderRequestModel):
             size = float(size_str_final)
             logger.info(f"Final size before sending: {size} (rounded to {sz_decimals_final} decimals)")
         
-        # Send order using exchange.order() method
-        # Format: exchange.order(coin, is_buy, sz, limit_px, order_type)
-        # For market orders: limit_px = None, order_type = {"market": {}}
-        # For limit orders: limit_px = price as string, order_type = {"limit": {"tif": "Gtc"}}
-        
-        if order.order_type.lower() == "market":
-            # Market order: SDK doesn't handle None for limit_px, so we use IOC limit order with aggressive price
-            # IOC (Immediate or Cancel) acts like a market order - executes immediately or cancels
-            logger.info(f"Enviando ordem MARKET (via IOC limit) para Hyperliquid...")
-            logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
-            logger.info(f"  Is Buy: {is_buy}")
-            logger.info(f"  Size: {size}")
-            logger.info(f"  Order Type: market (using IOC limit with aggressive price)")
-            
-            # Get current market price for aggressive limit order
-            aggressive_price = None
-            try:
-                symbol_upper = order.symbol.upper()
-                if symbol_upper in price_cache:
-                    cached = price_cache[symbol_upper]
-                    if order.side.lower() == "buy":
-                        # For buy: use ask_price (or mid_price + 5% to be very aggressive)
-                        ask_price = cached.get("ask_price")
-                        mid_price = cached.get("mid_price")
-                        market_price = ask_price if ask_price else mid_price
-                        if market_price is not None:
-                            # Ensure market_price is float (could be string from cache)
-                            try:
-                                if isinstance(market_price, str):
-                                    market_price = float(market_price)
-                                elif isinstance(market_price, (int, float)):
-                                    market_price = float(market_price)
-                                else:
-                                    type_name = str(type(market_price))
-                                    raise ValueError(f"Unexpected type for market_price: {type_name}")
-                                
-                                if market_price > 0:
-                                    # Calculate aggressive price and ensure it's float
-                                    calculated = market_price * 1.05  # 5% above to ensure execution
-                                    aggressive_price = float(calculated)
-                                else:
-                                    raise Exception("Invalid market price value (<= 0)")
-                            except (ValueError, TypeError) as e:
-                                # Safe error message - avoid format codes
-                                try:
-                                    error_msg = str(e) if e else "Unknown error"
-                                    # Replace format codes to prevent nested format errors
-                                    error_msg = error_msg.replace("{", "{{").replace("}", "}}")
-                                except Exception:
-                                    error_msg = "Could not convert to float"
-                                raise Exception(f"Could not convert market price to float: {error_msg}")
-                        else:
-                            raise Exception("No market price available in cache")
-                    else:
-                        # For sell: use bid_price (or mid_price - 5% to be very aggressive)
-                        bid_price = cached.get("bid_price")
-                        mid_price = cached.get("mid_price")
-                        market_price = bid_price if bid_price else mid_price
-                        if market_price is not None:
-                            # Ensure market_price is float (could be string from cache)
-                            try:
-                                if isinstance(market_price, str):
-                                    market_price = float(market_price)
-                                elif isinstance(market_price, (int, float)):
-                                    market_price = float(market_price)
-                                else:
-                                    type_name = str(type(market_price))
-                                    raise ValueError(f"Unexpected type for market_price: {type_name}")
-                                
-                                if market_price > 0:
-                                    # Calculate aggressive price and ensure it's float
-                                    calculated = market_price * 0.95  # 5% below to ensure execution
-                                    aggressive_price = float(calculated)
-                                else:
-                                    raise Exception("Invalid market price value (<= 0)")
-                            except (ValueError, TypeError) as e:
-                                # Safe error message - avoid format codes
-                                try:
-                                    error_msg = str(e) if e else "Unknown error"
-                                    # Replace format codes to prevent nested format errors
-                                    error_msg = error_msg.replace("{", "{{").replace("}", "}}")
-                                except Exception:
-                                    error_msg = "Could not convert to float"
-                                raise Exception(f"Could not convert market price to float: {error_msg}")
-                        else:
-                            raise Exception("No market price available in cache")
-                else:
-                    # Fallback: get from API
-                    market_data = await get_market_data(order.symbol)
-                    if market_data:
-                        mid_price = market_data.get("mid_price", 0)
-                        # Ensure mid_price is a float, not string
-                        try:
-                            if isinstance(mid_price, str):
-                                mid_price = float(mid_price)
-                            elif isinstance(mid_price, (int, float)):
-                                mid_price = float(mid_price)
-                            else:
-                                mid_price = 0
-                        except (ValueError, TypeError):
-                            mid_price = 0
-                            
-                        if mid_price > 0:
-                            if order.side.lower() == "buy":
-                                calculated = mid_price * 1.05
-                                aggressive_price = float(calculated)
-                            else:
-                                calculated = mid_price * 0.95
-                                aggressive_price = float(calculated)
-                        else:
-                            raise Exception("Invalid market price from API")
-                    else:
-                        raise Exception("Could not get market price")
-                
-                # Ensure aggressive_price was set
-                if aggressive_price is None:
-                    raise Exception("aggressive_price was not calculated")
-                
-                # Ensure it's a float before rounding
-                aggressive_price = float(aggressive_price)
-                aggressive_price = round(aggressive_price, 2)
-                aggressive_price = float(aggressive_price)  # Ensure still float after round
-                
-                # Final validation: ensure aggressive_price is a valid float before sending
-                if aggressive_price is None:
-                    raise Exception("aggressive_price is None - calculation failed")
-                
-                # Ensure it's definitely a float
-                try:
-                    aggressive_price_float = float(aggressive_price)
-                    if aggressive_price_float <= 0:
-                        # Use string conversion to avoid format errors
-                        price_str_val = str(aggressive_price_float)
-                        raise Exception(f"Invalid aggressive_price: {price_str_val} (must be > 0)")
-                    aggressive_price = aggressive_price_float
-                except (ValueError, TypeError) as e:
-                    error_type = str(type(aggressive_price))
-                    error_value = str(aggressive_price) if aggressive_price is not None else "None"
-                    raise Exception(f"aggressive_price is not a valid number: {error_value} (type: {error_type})")
-                
-                # Round to 2 decimal places - ensure it's float first
-                aggressive_price = float(aggressive_price)
-                aggressive_price = round(aggressive_price, 2)
-                aggressive_price = float(aggressive_price)  # Ensure still float after round
-                
-                # Safe logging - aggressive_price is guaranteed float here
-                price_for_log = float(aggressive_price)
-                logger.info(f"Using aggressive price for market order: {price_for_log}")
-                
-                # Convert to string for SDK (SDK expects string for limit_px)
-                # aggressive_price is guaranteed to be float here, so formatting is safe
-                try:
-                    # Double-check it's a float
-                    price_float = float(aggressive_price)
-                    price_str = f"{price_float:.2f}"
-                    logger.info(f"Sending order with price_str: {price_str}")
-                except (ValueError, TypeError) as format_err:
-                    # Log the actual value and type for debugging
-                    price_repr = repr(aggressive_price)
-                    price_type = str(type(aggressive_price))
-                    logger.error(f"Format error - price: {price_repr}, type: {price_type}, error: {format_err}")
-                    raise Exception(f"Could not format aggressive_price: {price_repr} (type: {price_type}) - {format_err}")
-                
-                # Use IOC (Immediate or Cancel) limit order as market order
-                result = exchange.order(
-                    order.symbol,  # coin
-                    is_buy,  # is_buy
-                    str(size),  # sz (as string)
-                    price_str,  # limit_px (as string, formatted to 2 decimals)
-                    {"limit": {"tif": "Ioc"}}  # IOC = Immediate or Cancel (acts like market)
-                )
-            except Exception as e:
-                # Safe error message extraction - avoid format codes
-                try:
-                    error_detail = str(e) if e else "Unknown error"
-                    # Replace any potential format codes in error message to prevent nested format errors
-                    error_detail = error_detail.replace("{", "{{").replace("}", "}}")
-                except Exception:
-                    error_detail = "Error occurred while processing market order"
-                
-                logger.error(f"Error getting market price for market order: {error_detail}")
-                # Avoid format codes in error message to prevent nested format errors
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {error_detail}"
-                )
-        else:
-            # Limit order: requires limit_px, order_type = {"limit": {"tif": "Gtc"}}
-            if not price or price <= 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Limit orders require a valid price. Please provide a price."
-                )
-            logger.info(f"Enviando ordem LIMIT para Hyperliquid...")
-            logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
-            logger.info(f"  Is Buy: {is_buy}")
-            logger.info(f"  Size: {size}")
-            logger.info(f"  Price: {price}")
-            logger.info(f"  Order Type: limit")
-            result = exchange.order(
-                order.symbol,  # coin
-                is_buy,  # is_buy
-                str(size),  # sz (as string)
-                str(round(price, 2)),  # limit_px (as string, rounded to 2 decimals)
-                {"limit": {"tif": "Gtc"}}  # order_type
+        # Final validation: ensure price is valid before sending
+        if price is None or price <= 0:
+            error_msg = f"Invalid price for order: {price}. Price must be a positive number."
+            logger.error(f"❌ {error_msg}")
+            log_order_request(order_data, error=error_msg)
+            raise HTTPException(
+                status_code=400,
+                detail=error_msg
             )
+        
+        # Ensure size is valid
+        if size is None or size <= 0:
+            error_msg = f"Invalid size for order: {size}. Size must be a positive number."
+            logger.error(f"❌ {error_msg}")
+            log_order_request(order_data, error=error_msg)
+            raise HTTPException(
+                status_code=400,
+                detail=error_msg
+            )
+        
+        # Log final order details before sending
+        logger.info(f"Enviando ordem para Hyperliquid...")
+        logger.info(f"  Symbol: {order.symbol}")
+        logger.info(f"  Is Buy: {is_buy}")
+        logger.info(f"  Size: {size} (type: {type(size).__name__})")
+        logger.info(f"  Price: {price} (type: {type(price).__name__})")
+        logger.info(f"  Order Type dict: {order_type}")
+        logger.info(f"  Order Type original: {order.order_type}")
+        
+        # Verify order_type structure is correct
+        if order.order_type.lower() == "market":
+            # For market orders, order_type should be {"limit": {"tif": "Ioc"}}
+            if not isinstance(order_type, dict) or "limit" not in order_type:
+                error_msg = f"Invalid order_type structure for market order: {order_type}. Expected {{'limit': {{'tif': 'Ioc'}}}}"
+                logger.error(f"❌ {error_msg}")
+                log_order_request(order_data, error=error_msg)
+                raise HTTPException(
+                    status_code=400,
+                    detail=error_msg
+                )
+            logger.info(f"✅ Market order structure validated: {order_type}")
+        
+        result = exchange.order(
+            order.symbol,
+            is_buy,
+            size,
+            price,
+            order_type
+        )
         
         logger.info("=" * 80)
         logger.info("✅ ORDEM ENVIADA COM SUCESSO!")
