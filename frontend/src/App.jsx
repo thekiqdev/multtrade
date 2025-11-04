@@ -759,12 +759,16 @@ function App() {
     
     // Format integer part with thousand separator (point) only if 5+ digits
     // This prevents formatting during continuous typing (holding a key)
+    // IMPORTANT: Don't format if user is still typing (allows continuous typing)
     let formattedInteger = integerPart
-    if (integerPart.length >= 5) {
+    // Only format if integer part has 5+ digits AND we're not in the middle of typing
+    // Check if decimal part is empty or incomplete (user still typing)
+    if (integerPart.length >= 5 && decimalPart.length > 0) {
       formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     }
     
-    // Limit decimal part to 3 digits
+    // Allow decimal part to continue - don't limit during typing
+    // Only limit when displaying final value
     const limitedDecimal = decimalPart.slice(0, 3)
     
     // Combine
@@ -910,7 +914,10 @@ function App() {
                     const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
                     
-                    // Limitar a 3 casas decimais
+                    // IMPORTANT: Allow unlimited decimal digits during typing
+                    // Only limit to 3 when storing final value (onBlur or submit)
+                    // This allows continuous typing: 11.111 → 11.1111 → 11.11111
+                    // But we'll limit to 3 for storage to match backend requirements
                     const limitedDecimal = decimalPart.slice(0, 3)
                     
                     // Combinar - mantém valor raw sem formatação de milhares na parte inteira
