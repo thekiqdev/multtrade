@@ -883,10 +883,18 @@ function App() {
                     }
                     
                     // Remove thousand separators to get numeric value
-                    const parts = rawValue.split('.')
-                    const integerPart = parts[0].replace(/\./g, '')
-                    const decimalPart = parts[1] || ''
-                    const numericValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
+                    const lastDotIndex = rawValue.lastIndexOf('.')
+                    let numericValue
+                    if (lastDotIndex === -1) {
+                      // No decimal point
+                      numericValue = rawValue.replace(/\./g, '')
+                    } else {
+                      // Has decimal point
+                      const integerPart = rawValue.substring(0, lastDotIndex).replace(/\./g, '')
+                      const decimalPart = rawValue.substring(lastDotIndex + 1)
+                      numericValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
+                    }
+                    
                     const num = parseFloat(numericValue)
                     if (isNaN(num) || num <= 0) {
                       setPriceError('Digite um preço válido maior que zero')
@@ -909,16 +917,13 @@ function App() {
                           `Preço deve estar entre ${minPrice.toFixed(3)} e ${maxPrice.toFixed(3)} ` +
                           `(preço atual: ${midPrice.toFixed(3)})`
                         )
-                        // Suggest valid price
-                        const suggestedPrice = rounded < minPrice 
-                          ? Math.max(minPrice, midPrice * 0.95)  // 5% below mid
-                          : Math.min(maxPrice, midPrice * 1.05)  // 5% above mid
-                        setLimitPrice(suggestedPrice.toFixed(3))
+                        // DON'T auto-correct - just show error and keep user's input
+                        // User can manually adjust
                         return
                       }
                     }
                     
-                    // Format to 3 decimal places
+                    // Only format to 3 decimal places if valid (don't change user input if invalid)
                     setLimitPrice(roundedStr)
                     setPriceError(null)
                   }}
