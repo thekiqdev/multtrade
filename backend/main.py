@@ -1208,7 +1208,8 @@ async def create_order(order: OrderRequestModel):
                                 elif isinstance(market_price, (int, float)):
                                     market_price = float(market_price)
                                 else:
-                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
+                                    type_name = str(type(market_price))
+                                    raise ValueError(f"Unexpected type for market_price: {type_name}")
                                 
                                 if market_price > 0:
                                     # Calculate aggressive price and ensure it's float
@@ -1234,7 +1235,8 @@ async def create_order(order: OrderRequestModel):
                                 elif isinstance(market_price, (int, float)):
                                     market_price = float(market_price)
                                 else:
-                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
+                                    type_name = str(type(market_price))
+                                    raise ValueError(f"Unexpected type for market_price: {type_name}")
                                 
                                 if market_price > 0:
                                     # Calculate aggressive price and ensure it's float
@@ -1284,19 +1286,35 @@ async def create_order(order: OrderRequestModel):
                 aggressive_price = round(aggressive_price, 2)
                 aggressive_price = float(aggressive_price)  # Ensure still float after round
                 
-                # Safe logging - ensure aggressive_price is numeric before formatting
+                # Final validation: ensure aggressive_price is a valid float before sending
+                if aggressive_price is None:
+                    raise Exception("aggressive_price is None - calculation failed")
+                
+                # Ensure it's definitely a float
                 try:
-                    price_value = float(aggressive_price)
-                    logger.info(f"Using aggressive price for market order: {price_value}")
-                except (ValueError, TypeError):
-                    logger.info(f"Using aggressive price for market order: {aggressive_price} (raw value)")
+                    aggressive_price_float = float(aggressive_price)
+                    if aggressive_price_float <= 0:
+                        raise Exception(f"Invalid aggressive_price: {aggressive_price_float} (must be > 0)")
+                    aggressive_price = aggressive_price_float
+                except (ValueError, TypeError) as e:
+                    raise Exception(f"aggressive_price is not a valid number: {aggressive_price} (type: {type(aggressive_price)})")
+                
+                # Round to 2 decimal places
+                aggressive_price = round(float(aggressive_price), 2)
+                
+                # Safe logging
+                logger.info(f"Using aggressive price for market order: {float(aggressive_price)}")
+                
+                # Convert to string for SDK (SDK expects string for limit_px)
+                price_str = f"{aggressive_price:.2f}"
+                logger.info(f"Sending order with price_str: {price_str}")
                 
                 # Use IOC (Immediate or Cancel) limit order as market order
                 result = exchange.order(
                     order.symbol,  # coin
                     is_buy,  # is_buy
                     str(size),  # sz (as string)
-                    str(aggressive_price),  # limit_px (aggressive price for immediate execution)
+                    price_str,  # limit_px (as string, formatted to 2 decimals)
                     {"limit": {"tif": "Ioc"}}  # IOC = Immediate or Cancel (acts like market)
                 )
             except Exception as e:
