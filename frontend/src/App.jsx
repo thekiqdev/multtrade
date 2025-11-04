@@ -969,17 +969,34 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    // Use askPrice (which is midPrice) - same value shown in BTC field
-                    // askPrice is already the correct mid_price value
+                    // Use askPrice (same as shown in BTC field) - it's already the mid_price
                     if (askPrice && askPrice > 0) {
                       const num = parseFloat(askPrice)
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places
                         const rounded = Math.round(num * 1000) / 1000
-                        // Store as raw value with exactly 3 decimal places (no formatting)
-                        // Example: 99.355 → "99.355"
-                        // The formatLimitPrice function will format it for display when needed
-                        const rawValue = rounded.toFixed(3)
+                        // Remove trailing zeros - only keep necessary decimals
+                        // Example: 99.355 → "99.355" (not "99.355000")
+                        // Example: 99.5 → "99.5" (not "99.500")
+                        // Example: 99 → "99" (not "99.000")
+                        let rawValue = rounded.toString()
+                        // Remove trailing zeros after decimal point
+                        if (rawValue.includes('.')) {
+                          rawValue = rawValue.replace(/\.?0+$/, '')
+                          // If all decimals were zeros, check if we need to add them back
+                          // But for Limit Price, we want to allow up to 3 decimals
+                          // So keep it as is if it has decimals, or add .000 if it's a whole number
+                          if (!rawValue.includes('.')) {
+                            // Whole number - store as is (no .000)
+                            rawValue = rounded.toString().split('.')[0]
+                          } else {
+                            // Has decimals - keep them but limit to 3
+                            const parts = rawValue.split('.')
+                            const integerPart = parts[0]
+                            const decimalPart = parts[1].slice(0, 3) // Limit to 3 decimals
+                            rawValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
+                          }
+                        }
                         setLimitPrice(rawValue)
                         setPriceError(null)
                       }
