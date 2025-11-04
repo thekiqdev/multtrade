@@ -743,30 +743,24 @@ function App() {
     const lastDotIndex = cleaned.lastIndexOf('.')
     
     if (lastDotIndex === -1) {
-      // No decimal point - format as integer with thousand separator
-      // Only format if number is 4+ digits to avoid interfering with typing
-      if (cleaned.length < 4) {
-        return cleaned
-      }
-      return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+      // No decimal point - return as is (no thousand separator formatting)
+      // This allows free typing: 111, 1111, 11111, 111111
+      return cleaned
     }
     
     // Split: integer part (before last dot) and decimal part (after last dot)
     const integerPartRaw = cleaned.substring(0, lastDotIndex)
-    const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
+    const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part (thousand separators)
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // Format integer part with thousand separator (point) only if 4+ digits
-    // This prevents formatting during typing of small numbers
-    let formattedInteger = integerPart
-    if (integerPart.length >= 4) {
-      formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    }
+    // DON'T format integer part with thousand separators - keep it raw for free typing
+    // This allows: 111.111, 1111.111, 11111.111, 111111.111
+    const formattedInteger = integerPart
     
     // Limit decimal part to 3 digits
     const limitedDecimal = decimalPart.slice(0, 3)
     
-    // Combine
+    // Combine - return raw format without thousand separators
     return `${formattedInteger}.${limitedDecimal}`
   }
 
@@ -931,7 +925,7 @@ function App() {
                       ? 'border-orange-500 focus:ring-orange-500' 
                       : 'border-gray-700 focus:ring-blue-500'
                   }`}
-                  placeholder={askPrice ? formatPrice(askPrice) : '100.789'}
+                  placeholder={askPrice ? askPrice.toFixed(3) : '111111.111'}
                 />
               </div>
               {priceError && (
