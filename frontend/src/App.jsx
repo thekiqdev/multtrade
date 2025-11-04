@@ -867,6 +867,7 @@ function App() {
                     }
                     
                     // Tem ponto decimal - separar parte inteira e decimal
+                    // O último ponto é sempre o separador decimal
                     const integerPartRaw = cleanedValue.substring(0, lastDotIndex)
                     const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira (separadores de milhares)
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
@@ -875,7 +876,8 @@ function App() {
                     const limitedDecimal = decimalPart.slice(0, 3)
                     
                     // Combinar - mantém valor raw sem formatação de milhares
-                    // Exemplo: 111111.789 → armazena como "111111.789" (sem pontos de milhares)
+                    // IMPORTANTE: Armazena como "95056.050" (sem pontos de milhares na parte inteira)
+                    // Exemplo: se usuário digita "95.056.050", armazena como "95056.050"
                     const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
                     
                     setPriceError(null)
