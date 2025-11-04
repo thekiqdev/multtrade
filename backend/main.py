@@ -1104,6 +1104,55 @@ async def create_order(order: OrderRequestModel):
                 # Round to 2 decimal places for price
                 if price > 0:
                     price = round(price, 2)
+                    
+                    # Validate and adjust price against reference price (Hyperliquid requirement)
+                    # Price must be within 80% of reference (20% to 180% of mid price)
+                    try:
+                        market_data = info_client.all_mids() if info_client else None
+                        meta = info_client.meta() if info_client else None
+                        if meta and market_data:
+                            asset_index = None
+                            for i, asset in enumerate(meta.get("universe", [])):
+                                if asset["name"] == order.symbol:
+                                    asset_index = i
+                                    break
+                            if asset_index is not None:
+                                # Get reference price
+                                if isinstance(market_data, dict):
+                                    reference_price = market_data.get(order.symbol.upper()) or market_data.get(order.symbol)
+                                    if reference_price is None:
+                                        market_list = list(market_data.values())
+                                        if asset_index < len(market_list):
+                                            reference_price = market_list[asset_index]
+                                    else:
+                                        reference_price = float(reference_price)
+                                elif isinstance(market_data, list) and asset_index < len(market_data):
+                                    reference_price = float(market_data[asset_index])
+                                else:
+                                    reference_price = None
+                                
+                                if reference_price and reference_price > 0:
+                                    min_price = reference_price * 0.2  # 20% of reference
+                                    max_price = reference_price * 1.8  # 180% of reference
+                                    
+                                    # Adjust price if outside valid range
+                                    if price < min_price:
+                                        logger.warning(f"Market order price {price} is below minimum {min_price}. Adjusting to {min_price}")
+                                        price = round(min_price, 2)
+                                    elif price > max_price:
+                                        logger.warning(f"Market order price {price} is above maximum {max_price}. Adjusting to {max_price}")
+                                        price = round(max_price, 2)
+                                    
+                                    logger.info(f"Market order price validated: {price} (reference: {reference_price:.2f}, range: {min_price:.2f} - {max_price:.2f})")
+                                else:
+                                    logger.warning(f"Could not get reference price for validation, using calculated price: {price}")
+                            else:
+                                logger.warning(f"Could not find asset index for {order.symbol}, using calculated price: {price}")
+                        else:
+                            logger.warning(f"Could not get market data for validation, using calculated price: {price}")
+                    except Exception as e:
+                        logger.warning(f"Error validating market order price against reference: {e}. Using calculated price: {price}")
+                    
                     logger.info(f"Market order final price: {price} (side: {order.side}, from cache)")
                 else:
                     raise Exception("Calculated price is invalid")
