@@ -1177,13 +1177,15 @@ async def create_order(order: OrderRequestModel):
         
         # Send order using exchange.order() method
         # Format: exchange.order(coin, is_buy, sz, limit_px, order_type)
-        logger.info(f"Enviando ordem para Hyperliquid...")
-        logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
-        logger.info(f"  Is Buy: {is_buy}")
-        logger.info(f"  Size: {size}")
+        # For market orders: limit_px = None, order_type = {"market": {}}
+        # For limit orders: limit_px = price as string, order_type = {"limit": {"tif": "Gtc"}}
         
         if order.order_type.lower() == "market":
             # Market order: limit_px = None, order_type = {"market": {}}
+            logger.info(f"Enviando ordem MARKET para Hyperliquid...")
+            logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
+            logger.info(f"  Is Buy: {is_buy}")
+            logger.info(f"  Size: {size}")
             logger.info(f"  Order Type: market (no price)")
             result = exchange.order(
                 order.symbol,  # coin
@@ -1199,6 +1201,10 @@ async def create_order(order: OrderRequestModel):
                     status_code=400,
                     detail="Limit orders require a valid price. Please provide a price."
                 )
+            logger.info(f"Enviando ordem LIMIT para Hyperliquid...")
+            logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
+            logger.info(f"  Is Buy: {is_buy}")
+            logger.info(f"  Size: {size}")
             logger.info(f"  Price: {price}")
             logger.info(f"  Order Type: limit")
             result = exchange.order(
