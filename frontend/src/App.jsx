@@ -897,12 +897,7 @@ function App() {
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-1">
-                Preço deve ter 2 casas decimais e estar dentro de 80% do preço de referência
-                {midPrice && (
-                  <span className="block mt-1">
-                    Range válido: ${formatPrice(midPrice * 0.2)} - ${formatPrice(midPrice * 1.8)}
-                  </span>
-                )}
+                O preço será validado pelo backend ao enviar a ordem
               </p>
             </div>
           )}
