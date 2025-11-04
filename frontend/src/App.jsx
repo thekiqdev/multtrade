@@ -704,8 +704,8 @@ function App() {
     
     if (lastDotIndex === -1) {
       // No decimal point - format as integer with thousand separator
-      // Only add separators if number is 4+ digits
-      if (cleaned.length <= 3) {
+      // Only add separators if number is 4+ digits (e.g., 1000 → 1.000, but 111 stays 111)
+      if (cleaned.length < 4) {
         return cleaned
       }
       return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
