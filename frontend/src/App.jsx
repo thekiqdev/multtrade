@@ -692,8 +692,9 @@ function App() {
   const formatLimitPrice = (value) => {
     if (!value || value === '') return ''
     
-    // Remove all non-numeric characters except decimal point
-    const cleaned = value.replace(/[^0-9.]/g, '')
+    // If value is already a string with formatting, use it directly
+    // Otherwise, process it
+    const cleaned = typeof value === 'string' ? value.replace(/[^0-9.]/g, '') : String(value).replace(/[^0-9.]/g, '')
     
     // Handle empty or just dot
     if (cleaned === '' || cleaned === '.') return cleaned
@@ -704,15 +705,23 @@ function App() {
     
     if (lastDotIndex === -1) {
       // No decimal point - format as integer with thousand separator
-      return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+      // But only if it's a large number (more than 3 digits)
+      if (cleaned.length > 3) {
+        return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+      }
+      return cleaned
     }
     
     // Split: integer part (before last dot) and decimal part (after last dot)
-    const integerPart = cleaned.substring(0, lastDotIndex).replace(/\./g, '') // Remove all dots from integer part
+    const integerPartRaw = cleaned.substring(0, lastDotIndex)
+    const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // Format integer part with thousand separator (point)
-    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    // Format integer part with thousand separator (point) only if it's large
+    let formattedInteger = integerPart
+    if (integerPart.length > 3) {
+      formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    }
     
     // Limit decimal part to 3 digits
     const limitedDecimal = decimalPart.slice(0, 3)
