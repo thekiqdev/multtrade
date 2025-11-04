@@ -630,22 +630,41 @@ function App() {
         size: size,
         price: orderType === 'limit' && limitPrice ? (() => {
           // Remove all formatting and extract numeric value correctly
+          // The limitPrice should be stored as raw value (e.g., "111111" or "111111.789")
+          // But it might have formatting from display, so we need to clean it
+          
+          // Remove all non-numeric characters except decimal point
+          let cleaned = limitPrice.toString().replace(/[^0-9.]/g, '')
+          
           // Find the last dot - that's the decimal separator
-          const lastDotIndex = limitPrice.lastIndexOf('.')
+          const lastDotIndex = cleaned.lastIndexOf('.')
           
           if (lastDotIndex === -1) {
-            // No decimal point - just remove all dots (thousand separators)
-            return parseFloat(limitPrice.replace(/\./g, ''))
+            // No decimal point - just remove all dots (thousand separators if any)
+            return parseFloat(cleaned.replace(/\./g, ''))
           }
           
           // Has decimal point - last dot is decimal separator
-          const integerPartRaw = limitPrice.substring(0, lastDotIndex)
+          // Everything before last dot is integer part (may have thousand separators)
+          const integerPartRaw = cleaned.substring(0, lastDotIndex)
           const integerPart = integerPartRaw.replace(/\./g, '') // Remove all thousand separators
-          const decimalPart = limitPrice.substring(lastDotIndex + 1)
+          const decimalPart = cleaned.substring(lastDotIndex + 1)
           
           // Combine: integerPart.decimalPart
           const numericValue = `${integerPart}.${decimalPart}`
-          return parseFloat(numericValue)
+          const parsed = parseFloat(numericValue)
+          
+          // Log for debugging
+          console.log('🔍 Price parsing:', {
+            original: limitPrice,
+            cleaned: cleaned,
+            integerPart: integerPart,
+            decimalPart: decimalPart,
+            numericValue: numericValue,
+            parsed: parsed
+          })
+          
+          return parsed
         })() : null,
         leverage: leverage,
         takeprofit: takeprofit ? parseFloat(takeprofit) : null,
