@@ -860,7 +860,6 @@ function App() {
                   }`}
                   placeholder={askPrice ? formatPrice(askPrice) : '100.789'}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
               </div>
               {priceError && (
                 <div className="mt-1 flex items-start gap-2 text-xs">
