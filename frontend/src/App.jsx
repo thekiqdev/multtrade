@@ -787,35 +787,46 @@ function App() {
               <label className="block text-sm text-gray-400 mb-1">Limit Price</label>
               <div className="relative">
                 <input
-                  type="number"
-                  value={limitPrice}
+                  type="text"
+                  value={limitPrice ? formatPrice(parseFloat(limitPrice.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0) : ''}
                   onChange={(e) => {
-                    const value = e.target.value
+                    let value = e.target.value
                     setPriceError(null)
                     
+                    // Remove $ and formatting for parsing
+                    value = value.replace(/[^\d,.-]/g, '')
+                    // Replace comma with dot for parsing
+                    const numValue = value.replace(',', '.')
+                    
                     // Allow typing - will validate on blur
-                    if (value === '' || value === '.') {
-                      setLimitPrice(value)
+                    if (value === '' || value === '.' || value === ',') {
+                      setLimitPrice('')
                       return
                     }
                     
-                    const num = parseFloat(value)
+                    const num = parseFloat(numValue)
                     if (!isNaN(num) && num > 0) {
-                      setLimitPrice(value)
+                      // Store raw number for calculations
+                      setLimitPrice(numValue)
                     } else if (value === '') {
-                      setLimitPrice(value)
+                      setLimitPrice('')
                     }
                   }}
                   onBlur={(e) => {
-                    const value = e.target.value
+                    let value = e.target.value
                     if (!value || value === '') {
                       setPriceError(null)
+                      setLimitPrice('')
                       return
                     }
                     
-                    const num = parseFloat(value)
+                    // Parse the formatted value
+                    const numValue = value.replace(/[^\d,.-]/g, '').replace(',', '.')
+                    const num = parseFloat(numValue)
+                    
                     if (isNaN(num) || num <= 0) {
                       setPriceError('Digite um preço válido maior que zero')
+                      setLimitPrice('')
                       return
                     }
                     
@@ -825,15 +836,14 @@ function App() {
                     const roundedStr = rounded.toFixed(2)
                     
                     // Validate price is within 80% of reference price (20% to 180% of mid price)
-                    // Hyperliquid requires price to be within 80% of reference price
                     if (midPrice && midPrice > 0) {
                       const minPrice = midPrice * 0.2  // 20% of reference
                       const maxPrice = midPrice * 1.8  // 180% of reference
                       
                       if (rounded < minPrice || rounded > maxPrice) {
                         setPriceError(
-                          `Preço deve estar entre ${minPrice.toFixed(2)} e ${maxPrice.toFixed(2)} ` +
-                          `(preço atual: ${midPrice.toFixed(2)})`
+                          `Preço deve estar entre ${formatPrice(minPrice)} e ${formatPrice(maxPrice)} ` +
+                          `(preço atual: ${formatPrice(midPrice)})`
                         )
                         // Suggest valid price
                         const suggestedPrice = rounded < minPrice 
@@ -846,23 +856,20 @@ function App() {
                     
                     // Check if the rounded value differs from input
                     if (Math.abs(num - rounded) > 0.0001) {
-                      setPriceError(`Preço ajustado para ${roundedStr} (tick size: 0.01)`)
+                      setPriceError(`Preço ajustado para ${formatPrice(rounded)} (tick size: 0.01)`)
                       setLimitPrice(roundedStr)
                     } else {
                       setLimitPrice(roundedStr)
                       setPriceError(null)
                     }
                   }}
-                  step="0.01"
-                  min="0"
                   className={`w-full bg-gray-900 border rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 ${
                     priceError 
                       ? 'border-orange-500 focus:ring-orange-500' 
                       : 'border-gray-700 focus:ring-blue-500'
                   }`}
-                  placeholder={askPrice ? formatPrice(askPrice) : 'Enter price'}
+                  placeholder={askPrice ? formatPrice(askPrice) : 'Digite o preço'}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
               </div>
               {priceError && (
                 <div className="mt-1 flex items-start gap-2 text-xs">
