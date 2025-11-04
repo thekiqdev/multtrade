@@ -691,16 +691,26 @@ function App() {
 
   const formatLimitPrice = (value) => {
     if (!value || value === '') return ''
+    
     // Remove all non-numeric characters except decimal point
     const cleaned = value.replace(/[^0-9.]/g, '')
     
     // Handle empty or just dot
     if (cleaned === '' || cleaned === '.') return cleaned
     
-    // Split by decimal point
+    // Split by decimal point - last part is decimal, rest are thousands
     const parts = cleaned.split('.')
-    const integerPart = parts[0] || '0'
-    const decimalPart = parts[1] || ''
+    
+    // If there's only one part or no decimal, treat all as integer
+    if (parts.length === 1) {
+      // Format integer part with thousand separator (point)
+      const integerPart = parts[0] || '0'
+      return integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    }
+    
+    // Multiple parts: last is decimal, everything before is integer
+    const integerPart = parts.slice(0, -1).join('') || parts[0] || '0'
+    const decimalPart = parts[parts.length - 1] || ''
     
     // Format integer part with thousand separator (point)
     const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
@@ -709,10 +719,7 @@ function App() {
     const limitedDecimal = decimalPart.slice(0, 3)
     
     // Combine
-    if (limitedDecimal) {
-      return `${formattedInteger}.${limitedDecimal}`
-    }
-    return formattedInteger
+    return `${formattedInteger}.${limitedDecimal}`
   }
 
   const formatNumber = (num) => {
