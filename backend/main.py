@@ -1019,50 +1019,52 @@ async def create_order(order: OrderRequestModel):
             # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel)
             order_type = {"limit": {"tif": "Ioc"}}  # Immediate or Cancel for market orders
             
-            # For market orders, we need to use a reference price (market price)
-            # Price 0 is invalid, so we get the current market price
+            # For market orders, we need to use an aggressive price to ensure immediate execution
+            # For buy orders: use ask_price (or higher) to ensure we can buy immediately
+            # For sell orders: use bid_price (or lower) to ensure we can sell immediately
             try:
-                market_data = info_client.all_mids() if info_client else None
-                meta = info_client.meta() if info_client else None
-                if meta and market_data:
-                    asset_index = None
-                    for i, asset in enumerate(meta.get("universe", [])):
-                        if asset["name"] == order.symbol:
-                            asset_index = i
-                            break
-                    if asset_index is not None:
-                        if isinstance(market_data, dict):
-                            # Try symbol uppercase first, then lowercase
-                            price = market_data.get(order.symbol.upper()) or market_data.get(order.symbol)
-                            if price is None:
-                                # Try to get from list values if dict doesn't have symbol key
-                                market_list = list(market_data.values())
-                                if asset_index < len(market_list):
-                                    price = market_list[asset_index]
-                                else:
-                                    price = 0
-                            else:
-                                price = float(price)
-                        elif isinstance(market_data, list) and asset_index < len(market_data):
-                            price = float(market_data[asset_index])
-                        else:
-                            price = 0
-                    else:
-                        price = 0
-                else:
-                    price = 0
+                # Get market data with bid/ask prices
+                market_data_result = await get_market_data(order.symbol)
+                
+                if market_data_result and market_data_result.get("mid_price"):
+                    mid_price = float(market_data_result.get("mid_price", 0))
+                    bid_price = market_data_result.get("bid_price")
+                    ask_price = market_data_result.get("ask_price")
                     
-                # Round to 2 decimal places for price
-                if price > 0:
-                    price = round(price, 2)
-                    logger.info(f"Market order using reference price: {price}")
+                    if order.side.lower() == "buy":
+                        # For buy orders, use ask_price if available (what sellers are asking)
+                        # If not available, use mid_price + 0.5% to be aggressive
+                        if ask_price and ask_price > 0:
+                            price = float(ask_price)
+                            logger.info(f"Market BUY order using ask_price: {price}")
+                        else:
+                            # Use mid_price + 0.5% to ensure we can buy immediately
+                            price = mid_price * 1.005
+                            logger.info(f"Market BUY order using mid_price + 0.5%: {price} (mid: {mid_price})")
+                    else:  # sell
+                        # For sell orders, use bid_price if available (what buyers are bidding)
+                        # If not available, use mid_price - 0.5% to be aggressive
+                        if bid_price and bid_price > 0:
+                            price = float(bid_price)
+                            logger.info(f"Market SELL order using bid_price: {price}")
+                        else:
+                            # Use mid_price - 0.5% to ensure we can sell immediately
+                            price = mid_price * 0.995
+                            logger.info(f"Market SELL order using mid_price - 0.5%: {price} (mid: {mid_price})")
+                    
+                    # Round to 2 decimal places for price
+                    if price > 0:
+                        price = round(price, 2)
+                        logger.info(f"Market order final price: {price} (side: {order.side})")
+                    else:
+                        raise Exception("Could not determine valid price for market order")
                 else:
-                    raise Exception("Could not get market price for market order")
+                    raise Exception("Could not get market data for market order")
             except Exception as e:
                 logger.error(f"Error getting market price for market order: {e}")
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Could not get market price for market order. Please try again or use a limit order."
+                    detail=f"Could not get market price for market order: {str(e)}. Please try again or use a limit order."
                 )
         else:
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel for limit orders
