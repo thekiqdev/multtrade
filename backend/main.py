@@ -715,7 +715,7 @@ async def get_market_data(symbol: str):
         # Get metadata to find asset index
         logger.info("Calling info_client.meta()...")
         meta = info_client.meta()
-        logger.info(f"Meta response type: {type(meta)}")
+        logger.info(f"Meta response type: {str(type(meta))}")
         logger.info(f"Meta keys: {list(meta.keys()) if isinstance(meta, dict) else 'Not a dict'}")
         
         if not meta or "universe" not in meta:
@@ -736,7 +736,7 @@ async def get_market_data(symbol: str):
         logger.info(f"Calling info_client.all_mids()...")
         logger.info(f"Looking for asset_index: {asset_index}")
         market_data = info_client.all_mids()
-        logger.info(f"Market data type: {type(market_data)}")
+        logger.info(f"Market data type: {str(type(market_data))}")
         logger.info(f"Market data length: {len(market_data) if market_data else 0}")
         
         # Handle both dict and list responses
