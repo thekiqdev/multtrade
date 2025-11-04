@@ -1016,10 +1016,54 @@ async def create_order(order: OrderRequestModel):
         
         # Build order type
         if order.order_type.lower() == "market":
-            # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel) and price 0
+            # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel)
             order_type = {"limit": {"tif": "Ioc"}}  # Immediate or Cancel for market orders
-            # For market orders, price should be 0 (not None) to avoid format string errors
-            price = 0
+            
+            # For market orders, we need to use a reference price (market price)
+            # Price 0 is invalid, so we get the current market price
+            try:
+                market_data = info_client.all_mids() if info_client else None
+                meta = info_client.meta() if info_client else None
+                if meta and market_data:
+                    asset_index = None
+                    for i, asset in enumerate(meta.get("universe", [])):
+                        if asset["name"] == order.symbol:
+                            asset_index = i
+                            break
+                    if asset_index is not None:
+                        if isinstance(market_data, dict):
+                            # Try symbol uppercase first, then lowercase
+                            price = market_data.get(order.symbol.upper()) or market_data.get(order.symbol)
+                            if price is None:
+                                # Try to get from list values if dict doesn't have symbol key
+                                market_list = list(market_data.values())
+                                if asset_index < len(market_list):
+                                    price = market_list[asset_index]
+                                else:
+                                    price = 0
+                            else:
+                                price = float(price)
+                        elif isinstance(market_data, list) and asset_index < len(market_data):
+                            price = float(market_data[asset_index])
+                        else:
+                            price = 0
+                    else:
+                        price = 0
+                else:
+                    price = 0
+                    
+                # Round to 2 decimal places for price
+                if price > 0:
+                    price = round(price, 2)
+                    logger.info(f"Market order using reference price: {price}")
+                else:
+                    raise Exception("Could not get market price for market order")
+            except Exception as e:
+                logger.error(f"Error getting market price for market order: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not get market price for market order. Please try again or use a limit order."
+                )
         else:
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel for limit orders
             # For limit orders, validate and round price to tick size
