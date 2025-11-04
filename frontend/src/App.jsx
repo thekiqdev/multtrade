@@ -732,48 +732,10 @@ function App() {
     // If value is already a number (from state), convert to string
     const valueStr = typeof value === 'number' ? value.toString() : value
     
-    // Remove all non-numeric characters except decimal point
-    const cleaned = valueStr.replace(/[^0-9.]/g, '')
-    
-    // Handle empty or just dot
-    if (cleaned === '' || cleaned === '.') return cleaned
-    
-    // Find the last dot - that's the decimal separator
-    // Everything before the last dot is integer part
-    const lastDotIndex = cleaned.lastIndexOf('.')
-    
-    if (lastDotIndex === -1) {
-      // No decimal point - format as integer with thousand separator
-      // Only format if number is 5+ digits to avoid interfering with continuous typing
-      // This prevents formatting when user is holding a key (e.g., 1111 → 1.111)
-      if (cleaned.length < 5) {
-        return cleaned
-      }
-      return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    }
-    
-    // Split: integer part (before last dot) and decimal part (after last dot)
-    const integerPartRaw = cleaned.substring(0, lastDotIndex)
-    const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
-    const decimalPart = cleaned.substring(lastDotIndex + 1)
-    
-    // Format integer part with thousand separator (point) only if 5+ digits
-    // This prevents formatting during continuous typing (holding a key)
-    // IMPORTANT: Don't format if user is still typing (allows continuous typing)
-    let formattedInteger = integerPart
-    // Only format if integer part has 5+ digits AND we're not in the middle of typing
-    // Check if decimal part is empty or incomplete (user still typing)
-    if (integerPart.length >= 5 && decimalPart.length > 0) {
-      formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    }
-    
-    // Allow decimal part to continue - don't limit during typing
-    // Only limit to 3 digits for display (user can type more)
-    // This allows continuous typing: 11.111 → 11.1111 → 11.11111
-    const limitedDecimal = decimalPart.length > 3 ? decimalPart.slice(0, 3) : decimalPart
-    
-    // Combine
-    return `${formattedInteger}.${limitedDecimal}`
+    // DON'T format during typing - just return the value as-is
+    // Formatting causes the cursor to jump and interferes with continuous typing
+    // The value is already stored correctly without formatting
+    return valueStr
   }
 
   const formatNumber = (num) => {
