@@ -966,6 +966,23 @@ function App() {
                     return `${formattedInteger}.${decimalPart.substring(0, 3)}`
                   })() : '100.000'}
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (askPrice && askPrice > 0) {
+                      // Use the current askPrice (mid_price) as limit price
+                      // Format to 3 decimal places
+                      const formattedPrice = askPrice.toFixed(3)
+                      setLimitPrice(formattedPrice)
+                      setPriceError(null)
+                    }
+                  }}
+                  disabled={!askPrice || askPrice <= 0}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0"
+                  title="Usar preço atual do BTC"
+                >
+                  Usar Atual
+                </button>
               </div>
               {priceError && (
                 <div className="mt-1 flex items-start gap-2 text-xs">
