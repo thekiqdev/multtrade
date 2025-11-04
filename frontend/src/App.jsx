@@ -969,10 +969,10 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (askPrice && askPrice > 0) {
-                      // Use the exact askPrice value (mid_price from cache)
+                    if (midPrice && midPrice > 0) {
+                      // Use the exact midPrice value (same as shown in BTC field)
                       // Round to 3 decimal places to match Limit Price format
-                      const num = parseFloat(askPrice)
+                      const num = parseFloat(midPrice)
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places
                         const rounded = Math.round(num * 1000) / 1000
@@ -985,7 +985,7 @@ function App() {
                       }
                     }
                   }}
-                  disabled={!askPrice || askPrice <= 0}
+                  disabled={!midPrice || midPrice <= 0}
                   className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0"
                   title="Usar preço atual (Mid Price)"
                 >
