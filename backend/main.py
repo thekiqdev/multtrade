@@ -1278,7 +1278,12 @@ async def create_order(order: OrderRequestModel):
                 aggressive_price = round(aggressive_price, 2)
                 aggressive_price = float(aggressive_price)  # Ensure still float after round
                 
-                logger.info(f"Using aggressive price for market order: {aggressive_price}")
+                # Safe logging - ensure aggressive_price is numeric before formatting
+                try:
+                    price_value = float(aggressive_price)
+                    logger.info(f"Using aggressive price for market order: {price_value}")
+                except (ValueError, TypeError):
+                    logger.info(f"Using aggressive price for market order: {aggressive_price} (raw value)")
                 
                 # Use IOC (Immediate or Cancel) limit order as market order
                 result = exchange.order(
