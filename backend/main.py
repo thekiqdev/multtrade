@@ -1171,21 +1171,53 @@ async def create_order(order: OrderRequestModel):
             size = float(size_str_final)
             logger.info(f"Final size before sending: {size} (rounded to {sz_decimals_final} decimals)")
         
-        # Send order
-        logger.info(f"Enviando ordem para Hyperliquid...")
-        logger.info(f"  Symbol: {order.symbol}")
-        logger.info(f"  Is Buy: {is_buy}")
-        logger.info(f"  Size: {size}")
-        logger.info(f"  Price: {price}")
-        logger.info(f"  Order Type: {order_type}")
+        # Build order payload according to Hyperliquid API format
+        import time
+        if order.order_type.lower() == "market":
+            # Market order: no price field
+            order_payload = {
+                "a": asset_index,
+                "b": is_buy,
+                "s": str(size),
+                "r": False,  # reduce_only
+                "t": {"market": {}}  # Market order type
+            }
+            logger.info(f"Enviando ordem MARKET para Hyperliquid...")
+            logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
+            logger.info(f"  Is Buy: {is_buy}")
+            logger.info(f"  Size: {size}")
+            logger.info(f"  Order Type: market (no price)")
+        else:
+            # Limit order: requires price field
+            if not price or price <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Limit orders require a valid price. Please provide a price."
+                )
+            order_payload = {
+                "a": asset_index,
+                "b": is_buy,
+                "p": str(round(price, 2)),  # Price as string, rounded to 2 decimals
+                "s": str(size),
+                "r": False,  # reduce_only
+                "t": {"limit": {"tif": "Gtc"}}  # Limit order type
+            }
+            logger.info(f"Enviando ordem LIMIT para Hyperliquid...")
+            logger.info(f"  Symbol: {order.symbol} (asset_index: {asset_index})")
+            logger.info(f"  Is Buy: {is_buy}")
+            logger.info(f"  Size: {size}")
+            logger.info(f"  Price: {price}")
+            logger.info(f"  Order Type: limit")
         
-        result = exchange.order(
-            order.symbol,
-            is_buy,
-            size,
-            price,
-            order_type
-        )
+        # Use post_action instead of exchange.order() for proper payload format
+        nonce = int(time.time() * 1000)
+        action = {
+            "type": "order",
+            "orders": [order_payload]
+        }
+        
+        logger.info(f"Payload: {action}")
+        result = exchange.post_action(action, nonce=nonce)
         
         logger.info("=" * 80)
         logger.info("✅ ORDEM ENVIADA COM SUCESSO!")
