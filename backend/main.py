@@ -1289,10 +1289,12 @@ async def create_order(order: OrderRequestModel):
                     {"limit": {"tif": "Ioc"}}  # IOC = Immediate or Cancel (acts like market)
                 )
             except Exception as e:
-                logger.error(f"Error getting market price for market order: {e}")
+                error_detail = str(e) if e else "Unknown error"
+                logger.error(f"Error getting market price for market order: {error_detail}")
+                # Avoid format codes in error message to prevent nested format errors
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {str(e)}"
+                    detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {error_detail}"
                 )
         else:
             # Limit order: requires limit_px, order_type = {"limit": {"tif": "Gtc"}}
