@@ -866,11 +866,12 @@ function App() {
                     // Limitar a 3 casas decimais
                     const limitedDecimal = decimalPart.slice(0, 3)
                     
-                    // Combinar
+                    // Combinar - mantém o valor raw sem formatação de milhares
                     const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
                     
                     setPriceError(null)
                     // Armazena o valor raw (sem formatação de milhares) para processamento
+                    // Isso permite digitação contínua sem interferência
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
