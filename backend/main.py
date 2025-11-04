@@ -1297,7 +1297,9 @@ async def create_order(order: OrderRequestModel):
                         raise Exception(f"Invalid aggressive_price: {aggressive_price_float} (must be > 0)")
                     aggressive_price = aggressive_price_float
                 except (ValueError, TypeError) as e:
-                    raise Exception(f"aggressive_price is not a valid number: {aggressive_price} (type: {type(aggressive_price)})")
+                    error_type = str(type(aggressive_price))
+                    error_value = str(aggressive_price) if aggressive_price is not None else "None"
+                    raise Exception(f"aggressive_price is not a valid number: {error_value} (type: {error_type})")
                 
                 # Round to 2 decimal places - ensure it's float first
                 aggressive_price = float(aggressive_price)
