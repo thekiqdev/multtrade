@@ -1218,7 +1218,13 @@ async def create_order(order: OrderRequestModel):
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                error_msg = str(e) if e else "Unknown error"
+                                # Safe error message - avoid format codes
+                                try:
+                                    error_msg = str(e) if e else "Unknown error"
+                                    # Replace format codes to prevent nested format errors
+                                    error_msg = error_msg.replace("{", "{{").replace("}", "}}")
+                                except Exception:
+                                    error_msg = "Could not convert to float"
                                 raise Exception(f"Could not convert market price to float: {error_msg}")
                         else:
                             raise Exception("No market price available in cache")
@@ -1245,7 +1251,13 @@ async def create_order(order: OrderRequestModel):
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                error_msg = str(e) if e else "Unknown error"
+                                # Safe error message - avoid format codes
+                                try:
+                                    error_msg = str(e) if e else "Unknown error"
+                                    # Replace format codes to prevent nested format errors
+                                    error_msg = error_msg.replace("{", "{{").replace("}", "}}")
+                                except Exception:
+                                    error_msg = "Could not convert to float"
                                 raise Exception(f"Could not convert market price to float: {error_msg}")
                         else:
                             raise Exception("No market price available in cache")
@@ -1294,7 +1306,9 @@ async def create_order(order: OrderRequestModel):
                 try:
                     aggressive_price_float = float(aggressive_price)
                     if aggressive_price_float <= 0:
-                        raise Exception(f"Invalid aggressive_price: {aggressive_price_float} (must be > 0)")
+                        # Use string conversion to avoid format errors
+                        price_str_val = str(aggressive_price_float)
+                        raise Exception(f"Invalid aggressive_price: {price_str_val} (must be > 0)")
                     aggressive_price = aggressive_price_float
                 except (ValueError, TypeError) as e:
                     error_type = str(type(aggressive_price))
@@ -1333,7 +1347,14 @@ async def create_order(order: OrderRequestModel):
                     {"limit": {"tif": "Ioc"}}  # IOC = Immediate or Cancel (acts like market)
                 )
             except Exception as e:
-                error_detail = str(e) if e else "Unknown error"
+                # Safe error message extraction - avoid format codes
+                try:
+                    error_detail = str(e) if e else "Unknown error"
+                    # Replace any potential format codes in error message to prevent nested format errors
+                    error_detail = error_detail.replace("{", "{{").replace("}", "}}")
+                except Exception:
+                    error_detail = "Error occurred while processing market order"
+                
                 logger.error(f"Error getting market price for market order: {error_detail}")
                 # Avoid format codes in error message to prevent nested format errors
                 raise HTTPException(
