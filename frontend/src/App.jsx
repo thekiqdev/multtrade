@@ -786,9 +786,9 @@ function App() {
               <div className="relative">
                 <input
                   type="text"
-                  value={limitPrice ? formatPrice(parseFloat(limitPrice)) : ''}
+                  value={limitPrice ? formatPrice(parseFloat(limitPrice.replace(/[^0-9.]/g, '') || 0)) : ''}
                   onChange={(e) => {
-                    const value = e.target.value
+                    const value = e.target.value.replace(/[^0-9.]/g, '') // Remove tudo exceto números e ponto
                     setPriceError(null)
                     
                     // Allow typing - will validate on blur
@@ -797,6 +797,7 @@ function App() {
                       return
                     }
                     
+                    // Allow typing with decimal places
                     const num = parseFloat(value)
                     if (!isNaN(num) && num > 0) {
                       setLimitPrice(value)
@@ -805,9 +806,10 @@ function App() {
                     }
                   }}
                   onBlur={(e) => {
-                    const value = e.target.value
+                    const value = e.target.value.replace(/[^0-9.]/g, '')
                     if (!value || value === '') {
                       setPriceError(null)
+                      setLimitPrice('')
                       return
                     }
                     
@@ -817,10 +819,9 @@ function App() {
                       return
                     }
                     
-                    // Hyperliquid BTC tick size is 0.01 (2 decimal places)
-                    // Round to 2 decimal places to match valid tick size
-                    const rounded = Math.round(num * 100) / 100
-                    const roundedStr = rounded.toFixed(2)
+                    // Round to 3 decimal places for display
+                    const rounded = Math.round(num * 1000) / 1000
+                    const roundedStr = rounded.toFixed(3)
                     
                     // Validate price is within 80% of reference price (20% to 180% of mid price)
                     // Hyperliquid requires price to be within 80% of reference price
@@ -830,29 +831,22 @@ function App() {
                       
                       if (rounded < minPrice || rounded > maxPrice) {
                         setPriceError(
-                          `Preço deve estar entre ${minPrice.toFixed(2)} e ${maxPrice.toFixed(2)} ` +
-                          `(preço atual: ${midPrice.toFixed(2)})`
+                          `Preço deve estar entre ${minPrice.toFixed(3)} e ${maxPrice.toFixed(3)} ` +
+                          `(preço atual: ${midPrice.toFixed(3)})`
                         )
                         // Suggest valid price
                         const suggestedPrice = rounded < minPrice 
                           ? Math.max(minPrice, midPrice * 0.95)  // 5% below mid
                           : Math.min(maxPrice, midPrice * 1.05)  // 5% above mid
-                        setLimitPrice(suggestedPrice.toFixed(2))
+                        setLimitPrice(suggestedPrice.toFixed(3))
                         return
                       }
                     }
                     
-                    // Check if the rounded value differs from input
-                    if (Math.abs(num - rounded) > 0.0001) {
-                      setPriceError(`Preço ajustado para ${roundedStr} (tick size: 0.01)`)
-                      setLimitPrice(roundedStr)
-                    } else {
-                      setLimitPrice(roundedStr)
-                      setPriceError(null)
-                    }
+                    // Format to 3 decimal places
+                    setLimitPrice(roundedStr)
+                    setPriceError(null)
                   }}
-                  step="0.01"
-                  min="0"
                   className={`w-full bg-gray-900 border rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 ${
                     priceError 
                       ? 'border-orange-500 focus:ring-orange-500' 
