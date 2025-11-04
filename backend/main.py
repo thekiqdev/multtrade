@@ -1052,10 +1052,42 @@ async def create_order(order: OrderRequestModel):
                             price = mid_price * 0.995
                             logger.info(f"Market SELL order using mid_price - 0.5%: {price} (mid: {mid_price})")
                     
-                    # Round to 2 decimal places for price
+                    # Round to 2 decimal places for price (tick size is 0.01)
                     if price > 0:
                         price = round(price, 2)
-                        logger.info(f"Market order final price: {price} (side: {order.side})")
+                        logger.info(f"Market order calculated price: {price} (side: {order.side}, mid: {mid_price})")
+                        
+                        # Validate price is within 80% of reference price (20% to 180% of mid price)
+                        # Hyperliquid requires: price cannot be more than 80% away from reference
+                        min_price = mid_price * 0.2  # 20% of reference
+                        max_price = mid_price * 1.8  # 180% of reference
+                        
+                        if price < min_price or price > max_price:
+                            # Price is outside valid range, adjust to valid range
+                            if order.side.lower() == "buy":
+                                # For buy, use max_price (180% of mid) to be very aggressive
+                                price = max_price
+                                logger.warning(f"Market BUY price {price} was outside range, adjusted to {max_price} (max valid)")
+                            else:  # sell
+                                # For sell, use min_price (20% of mid) to be very aggressive
+                                price = min_price
+                                logger.warning(f"Market SELL price {price} was outside range, adjusted to {min_price} (min valid)")
+                        
+                        # Final validation: ensure price is still within valid range
+                        if price < min_price or price > max_price:
+                            error_msg = (
+                                f"Order price cannot be more than 80% away from the reference price. "
+                                f"Reference price: {mid_price:.2f}, "
+                                f"Valid range: {min_price:.2f} - {max_price:.2f}, "
+                                f"Calculated price: {price:.2f}"
+                            )
+                            logger.error(f"❌ {error_msg}")
+                            raise HTTPException(
+                                status_code=400,
+                                detail=error_msg
+                            )
+                        
+                        logger.info(f"Market order final validated price: {price} (within range {min_price:.2f} - {max_price:.2f})")
                     else:
                         raise Exception("Could not determine valid price for market order")
                 else:
