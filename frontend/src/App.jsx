@@ -744,8 +744,9 @@ function App() {
     
     if (lastDotIndex === -1) {
       // No decimal point - format as integer with thousand separator
-      // Format immediately to allow typing: 111 → 111.111 (separador de milhares)
-      if (cleaned.length <= 3) {
+      // Only format if number is 5+ digits to avoid interfering with continuous typing
+      // This prevents formatting when user is holding a key (e.g., 1111 → 1.111)
+      if (cleaned.length < 5) {
         return cleaned
       }
       return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
@@ -756,10 +757,10 @@ function App() {
     const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // Format integer part with thousand separator (point) immediately
-    // This allows typing: 111.111, 1111.111, 11111.111
+    // Format integer part with thousand separator (point) only if 5+ digits
+    // This prevents formatting during continuous typing (holding a key)
     let formattedInteger = integerPart
-    if (integerPart.length > 3) {
+    if (integerPart.length >= 5) {
       formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     }
     
