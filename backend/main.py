@@ -1052,7 +1052,7 @@ async def create_order(order: OrderRequestModel):
                             price = mid_price * 0.995
                             logger.info(f"Market SELL order using mid_price - 0.5%: {price} (mid: {mid_price})")
                     
-                    # Round to 2 decimal places for price (tick size is 0.01)
+                    # Round to 2 decimal places for price
                     if price > 0:
                         price = round(price, 2)
                         logger.info(f"Market order calculated price: {price} (side: {order.side}, mid: {mid_price})")
