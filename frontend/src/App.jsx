@@ -635,13 +635,26 @@ function App() {
       // Calculate size from USD quantity
       const size = askPrice ? parseFloat(quantityUsd) / askPrice : parseFloat(quantityUsd) / 100000
 
+      // Parse limitPrice if it's a formatted string
+      let parsedLimitPrice = null
+      if (orderType === 'limit' && limitPrice) {
+        // Remove formatting and parse (handle both formatted and raw)
+        const cleanPrice = limitPrice.toString().replace(/[^\d,.-]/g, '').replace(',', '.')
+        parsedLimitPrice = parseFloat(cleanPrice)
+        if (isNaN(parsedLimitPrice) || parsedLimitPrice <= 0) {
+          setError('Preço limit inválido')
+          setLoading(false)
+          return
+        }
+      }
+
       const orderData = {
         symbol: symbol,
         side: side,
         order_type: orderType,
         quantity_usd: parseFloat(quantityUsd),
         size: size,
-        price: orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : null,
+        price: parsedLimitPrice,
         leverage: leverage,
         takeprofit: takeprofit ? parseFloat(takeprofit) : null,
         stoploss: stoploss ? parseFloat(stoploss) : null
@@ -665,13 +678,11 @@ function App() {
   }
 
   const formatPrice = (price) => {
-    if (!price) return '$0,00'
-    // Format as Brazilian currency: $100.789,50 (point for thousands, comma for decimals)
-    const formatted = new Intl.NumberFormat('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 3,
-      useGrouping: true
-    }).format(price)
+    if (!price) return '$0'
+    // Format as Brazilian: $100.789 (point for thousands, no decimals)
+    // Remove decimal part and format with point separator
+    const integerPart = Math.floor(price)
+    const formatted = integerPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     return `$${formatted}`
   }
 
