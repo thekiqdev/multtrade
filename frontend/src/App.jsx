@@ -692,9 +692,8 @@ function App() {
   const formatLimitPrice = (value) => {
     if (!value || value === '') return ''
     
-    // If value is already a string with formatting, use it directly
-    // Otherwise, process it
-    const cleaned = typeof value === 'string' ? value.replace(/[^0-9.]/g, '') : String(value).replace(/[^0-9.]/g, '')
+    // Remove all non-numeric characters except decimal point
+    const cleaned = value.replace(/[^0-9.]/g, '')
     
     // Handle empty or just dot
     if (cleaned === '' || cleaned === '.') return cleaned
@@ -705,11 +704,11 @@ function App() {
     
     if (lastDotIndex === -1) {
       // No decimal point - format as integer with thousand separator
-      // But only if it's a large number (more than 3 digits)
-      if (cleaned.length > 3) {
-        return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+      // Only add separators if number is 4+ digits
+      if (cleaned.length <= 3) {
+        return cleaned
       }
-      return cleaned
+      return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     }
     
     // Split: integer part (before last dot) and decimal part (after last dot)
@@ -717,7 +716,7 @@ function App() {
     const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
-    // Format integer part with thousand separator (point) only if it's large
+    // Format integer part with thousand separator (point) only if 4+ digits
     let formattedInteger = integerPart
     if (integerPart.length > 3) {
       formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
@@ -853,20 +852,21 @@ function App() {
                     const lastDotIndex = cleanedValue.lastIndexOf('.')
                     
                     if (lastDotIndex === -1) {
-                      // Sem ponto decimal - apenas números
+                      // Sem ponto decimal - apenas números (armazena raw, sem formatação)
                       setPriceError(null)
                       setLimitPrice(cleanedValue)
                       return
                     }
                     
                     // Separar parte inteira e decimal
-                    const integerPart = cleanedValue.substring(0, lastDotIndex).replace(/\./g, '') // Remove pontos da parte inteira
+                    const integerPartRaw = cleanedValue.substring(0, lastDotIndex)
+                    const integerPart = integerPartRaw.replace(/\./g, '') // Remove pontos da parte inteira
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
                     
                     // Limitar a 3 casas decimais
                     const limitedDecimal = decimalPart.slice(0, 3)
                     
-                    // Combinar - mantém o valor raw sem formatação de milhares
+                    // Combinar - mantém valor raw sem formatação de milhares
                     const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
                     
                     setPriceError(null)
@@ -884,18 +884,10 @@ function App() {
                     }
                     
                     // Remove thousand separators to get numeric value
-                    const lastDotIndex = rawValue.lastIndexOf('.')
-                    let numericValue
-                    if (lastDotIndex === -1) {
-                      // No decimal point
-                      numericValue = rawValue.replace(/\./g, '')
-                    } else {
-                      // Has decimal point
-                      const integerPart = rawValue.substring(0, lastDotIndex).replace(/\./g, '')
-                      const decimalPart = rawValue.substring(lastDotIndex + 1)
-                      numericValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
-                    }
-                    
+                    const parts = rawValue.split('.')
+                    const integerPart = parts[0].replace(/\./g, '')
+                    const decimalPart = parts[1] || ''
+                    const numericValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
                     const num = parseFloat(numericValue)
                     if (isNaN(num) || num <= 0) {
                       setPriceError('Digite um preço válido maior que zero')
@@ -918,13 +910,16 @@ function App() {
                           `Preço deve estar entre ${minPrice.toFixed(3)} e ${maxPrice.toFixed(3)} ` +
                           `(preço atual: ${midPrice.toFixed(3)})`
                         )
-                        // DON'T auto-correct - just show error and keep user's input
-                        // User can manually adjust
+                        // Suggest valid price
+                        const suggestedPrice = rounded < minPrice 
+                          ? Math.max(minPrice, midPrice * 0.95)  // 5% below mid
+                          : Math.min(maxPrice, midPrice * 1.05)  // 5% above mid
+                        setLimitPrice(suggestedPrice.toFixed(3))
                         return
                       }
                     }
                     
-                    // Only format to 3 decimal places if valid (don't change user input if invalid)
+                    // Format to 3 decimal places
                     setLimitPrice(roundedStr)
                     setPriceError(null)
                   }}
