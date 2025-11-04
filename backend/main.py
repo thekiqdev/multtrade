@@ -1117,9 +1117,17 @@ async def create_order(order: OrderRequestModel):
                     logger.warning(f"Price {price} above maximum {max_valid_price}, adjusting...")
                     price = max_valid_price
                 
-                # Round to 2 decimal places for price
+                # Round price appropriately - Hyperliquid may require specific precision
+                # For BTC, tick size is typically 0.01 (2 decimal places), but let's be more precise
+                # Round to 2 decimal places first, then check if we need to adjust
                 price = round(price, 2)
+                
+                # Ensure price is a valid float (not too many decimal places)
+                # Hyperliquid may reject prices with too much precision
+                price = float(f"{price:.2f}")
+                
                 logger.info(f"✅ Market order final price: {price} (side: {order.side}, reference: {reference_price:.2f}, range: {min_valid_price:.2f}-{max_valid_price:.2f})")
+                logger.info(f"🔍 Price validation: price={price}, type={type(price)}, is_valid={price > 0 and price >= min_valid_price and price <= max_valid_price}")
                     
             except Exception as e:
                 logger.error(f"Error getting market price for market order: {e}")
