@@ -732,10 +732,39 @@ function App() {
     // If value is already a number (from state), convert to string
     const valueStr = typeof value === 'number' ? value.toString() : value
     
-    // DON'T format during typing - just return the value as-is
-    // Formatting causes the cursor to jump and interferes with continuous typing
-    // The value is already stored correctly without formatting
-    return valueStr
+    // Remove all non-numeric characters except decimal point
+    const cleaned = valueStr.replace(/[^0-9.]/g, '')
+    
+    // Handle empty or just dot
+    if (cleaned === '' || cleaned === '.') return cleaned
+    
+    // Find the last dot - that's the decimal separator
+    // Everything before the last dot is integer part
+    const lastDotIndex = cleaned.lastIndexOf('.')
+    
+    if (lastDotIndex === -1) {
+      // No decimal point - don't format during typing to avoid freezing
+      // Only show raw value - formatting will be applied on blur
+      // This prevents cursor jumping and field freezing
+      return cleaned
+    }
+    
+    // Split: integer part (before last dot) and decimal part (after last dot)
+    const integerPartRaw = cleaned.substring(0, lastDotIndex)
+    const integerPart = integerPartRaw.replace(/\./g, '') // Remove all dots from integer part
+    const decimalPart = cleaned.substring(lastDotIndex + 1)
+    
+    // Don't format integer part during typing - just return raw value
+    // Formatting causes cursor issues and field freezing
+    // Formatting will be applied on blur only
+    
+    // Allow decimal part to continue - don't limit during typing
+    // Only limit to 3 digits for display (user can type more)
+    // This allows continuous typing: 11.111 → 11.1111 → 11.11111
+    const limitedDecimal = decimalPart.length > 3 ? decimalPart.slice(0, 3) : decimalPart
+    
+    // Combine - return raw integer part without formatting
+    return `${integerPart}.${limitedDecimal}`
   }
 
   const formatNumber = (num) => {
@@ -888,14 +917,34 @@ function App() {
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
-                    // Limit decimal to 3 digits when user leaves field
-                    if (limitPrice && limitPrice.includes('.')) {
-                      const parts = limitPrice.split('.')
-                      const integerPart = parts[0]
-                      const decimalPart = parts[1] || ''
-                      const limitedDecimal = decimalPart.slice(0, 3)
-                      const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
-                      setLimitPrice(finalValue)
+                    // Format and limit when user leaves field
+                    if (limitPrice) {
+                      let cleaned = limitPrice.toString().replace(/[^0-9.]/g, '')
+                      
+                      if (cleaned && cleaned !== '' && cleaned !== '.') {
+                        const lastDotIndex = cleaned.lastIndexOf('.')
+                        
+                        if (lastDotIndex === -1) {
+                          // No decimal - format with thousand separator if 4+ digits
+                          if (cleaned.length >= 4) {
+                            cleaned = cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                          }
+                        } else {
+                          // Has decimal - format integer part and limit decimal
+                          const integerPart = cleaned.substring(0, lastDotIndex).replace(/\./g, '')
+                          const decimalPart = cleaned.substring(lastDotIndex + 1).slice(0, 3)
+                          
+                          // Format integer part with thousand separator if 4+ digits
+                          let formattedInteger = integerPart
+                          if (integerPart.length >= 4) {
+                            formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                          }
+                          
+                          cleaned = decimalPart ? `${formattedInteger}.${decimalPart}` : formattedInteger
+                        }
+                        
+                        setLimitPrice(cleaned)
+                      }
                     }
                     // Just clear any previous errors - validation will be done by backend
                     setPriceError(null)
