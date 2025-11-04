@@ -757,10 +757,10 @@ function App() {
     // This allows: 111.111, 1111.111, 11111.111, 111111.111
     const formattedInteger = integerPart
     
-    // Limit decimal part to 3 digits
-    const limitedDecimal = decimalPart.slice(0, 3)
+    // Limit decimal part to 3 digits and pad with zeros if needed
+    const limitedDecimal = decimalPart.slice(0, 3).padEnd(3, '0')
     
-    // Combine - return raw format without thousand separators
+    // Combine - return raw format without thousand separators, always with 3 decimals
     return `${formattedInteger}.${limitedDecimal}`
   }
 
@@ -903,13 +903,13 @@ function App() {
                     const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira (separadores de milhares)
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
                     
-                    // Limitar a 3 casas decimais
-                    const limitedDecimal = decimalPart.slice(0, 3)
+                    // Limitar a 3 casas decimais e preencher com zeros se necessário
+                    const limitedDecimal = decimalPart.slice(0, 3).padEnd(3, '0')
                     
-                    // Combinar - mantém valor raw sem formatação de milhares
+                    // Combinar - mantém valor raw sem formatação de milhares, sempre com 3 decimais
                     // IMPORTANTE: Armazena como "95056.050" (sem pontos de milhares na parte inteira)
                     // Exemplo: se usuário digita "95.056.050", armazena como "95056.050"
-                    const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
+                    const finalValue = `${integerPart}.${limitedDecimal}`
                     
                     setPriceError(null)
                     // Armazena o valor raw (sem formatação de milhares) para processamento
