@@ -633,15 +633,29 @@ function App() {
           // The limitPrice should be stored as raw value (e.g., "111111" or "111111.789")
           // But it might have formatting from display, so we need to clean it
           
+          // Convert to string first
+          const limitPriceStr = limitPrice.toString()
+          
           // Remove all non-numeric characters except decimal point
-          let cleaned = limitPrice.toString().replace(/[^0-9.]/g, '')
+          let cleaned = limitPriceStr.replace(/[^0-9.]/g, '')
+          
+          if (!cleaned || cleaned === '' || cleaned === '.') {
+            console.warn('⚠️ Invalid limitPrice:', limitPrice)
+            return null
+          }
           
           // Find the last dot - that's the decimal separator
           const lastDotIndex = cleaned.lastIndexOf('.')
           
           if (lastDotIndex === -1) {
             // No decimal point - just remove all dots (thousand separators if any)
-            return parseFloat(cleaned.replace(/\./g, ''))
+            const numValue = parseFloat(cleaned.replace(/\./g, ''))
+            console.log('🔍 Price parsing (no decimal):', {
+              original: limitPrice,
+              cleaned: cleaned,
+              parsed: numValue
+            })
+            return numValue
           }
           
           // Has decimal point - last dot is decimal separator
@@ -655,7 +669,7 @@ function App() {
           const parsed = parseFloat(numericValue)
           
           // Log for debugging
-          console.log('🔍 Price parsing:', {
+          console.log('🔍 Price parsing (with decimal):', {
             original: limitPrice,
             cleaned: cleaned,
             integerPart: integerPart,
@@ -663,6 +677,12 @@ function App() {
             numericValue: numericValue,
             parsed: parsed
           })
+          
+          // Validate parsed value
+          if (isNaN(parsed) || parsed <= 0) {
+            console.error('❌ Invalid parsed price:', parsed)
+            return null
+          }
           
           return parsed
         })() : null,
