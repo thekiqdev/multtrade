@@ -642,17 +642,23 @@ function App() {
         quantity_usd: parseFloat(quantityUsd),
         size: size,
         price: orderType === 'limit' && limitPrice ? (() => {
-          // Remove thousand separators (points), keep only decimal separator
-          const cleaned = limitPrice.replace(/\./g, '')
-          // If there was a decimal part, add it back
-          const parts = limitPrice.split('.')
-          if (parts.length > 1) {
-            // Last part is decimal, everything else is thousands
-            const decimalPart = parts[parts.length - 1]
-            const integerPart = parts.slice(0, -1).join('').replace(/\./g, '')
-            return parseFloat(integerPart + '.' + decimalPart)
+          // Remove all formatting and extract numeric value correctly
+          // Find the last dot - that's the decimal separator
+          const lastDotIndex = limitPrice.lastIndexOf('.')
+          
+          if (lastDotIndex === -1) {
+            // No decimal point - just remove all dots (thousand separators)
+            return parseFloat(limitPrice.replace(/\./g, ''))
           }
-          return parseFloat(cleaned)
+          
+          // Has decimal point - last dot is decimal separator
+          const integerPartRaw = limitPrice.substring(0, lastDotIndex)
+          const integerPart = integerPartRaw.replace(/\./g, '') // Remove all thousand separators
+          const decimalPart = limitPrice.substring(lastDotIndex + 1)
+          
+          // Combine: integerPart.decimalPart
+          const numericValue = `${integerPart}.${decimalPart}`
+          return parseFloat(numericValue)
         })() : null,
         leverage: leverage,
         takeprofit: takeprofit ? parseFloat(takeprofit) : null,
@@ -878,7 +884,7 @@ function App() {
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
-                    // Use limitPrice (raw value) instead of e.target.value (formatted)
+                    // Use limitPrice (raw value) - remove formatting to get numeric value
                     const rawValue = limitPrice.replace(/[^0-9.]/g, '')
                     if (!rawValue || rawValue === '' || rawValue === '.') {
                       setPriceError(null)
@@ -886,11 +892,21 @@ function App() {
                       return
                     }
                     
-                    // Remove thousand separators to get numeric value
-                    const parts = rawValue.split('.')
-                    const integerPart = parts[0].replace(/\./g, '')
-                    const decimalPart = parts[1] || ''
-                    const numericValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
+                    // Find the last dot - that's the decimal separator
+                    const lastDotIndex = rawValue.lastIndexOf('.')
+                    let numericValue
+                    
+                    if (lastDotIndex === -1) {
+                      // No decimal point - remove all dots (thousand separators)
+                      numericValue = rawValue.replace(/\./g, '')
+                    } else {
+                      // Has decimal point - last dot is decimal separator
+                      const integerPartRaw = rawValue.substring(0, lastDotIndex)
+                      const integerPart = integerPartRaw.replace(/\./g, '') // Remove thousand separators
+                      const decimalPart = rawValue.substring(lastDotIndex + 1)
+                      numericValue = `${integerPart}.${decimalPart}`
+                    }
+                    
                     const num = parseFloat(numericValue)
                     if (isNaN(num) || num <= 0) {
                       setPriceError('Digite um preço válido maior que zero')
@@ -898,7 +914,7 @@ function App() {
                       return
                     }
                     
-                    // Round to 3 decimal places for display
+                    // Round to 3 decimal places for storage
                     const rounded = Math.round(num * 1000) / 1000
                     const roundedStr = rounded.toFixed(3)
                     
@@ -922,7 +938,7 @@ function App() {
                       }
                     }
                     
-                    // Format to 3 decimal places
+                    // Format to 3 decimal places and store raw (without thousand separators)
                     setLimitPrice(roundedStr)
                     setPriceError(null)
                   }}
