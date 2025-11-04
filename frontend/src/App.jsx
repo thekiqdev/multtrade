@@ -665,12 +665,14 @@ function App() {
   }
 
   const formatPrice = (price) => {
-    if (!price) return '0.00'
-    // Format with 2 decimal places for better precision display
-    return new Intl.NumberFormat('en-US', {
+    if (!price) return '$0,00'
+    // Format as Brazilian currency: $100.789,50 (point for thousands, comma for decimals)
+    const formatted = new Intl.NumberFormat('pt-BR', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 3,
+      useGrouping: true
     }).format(price)
+    return `$${formatted}`
   }
 
   const formatNumber = (num) => {
@@ -766,7 +768,7 @@ function App() {
           {/* Ask Price - Always from cache, real value */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">
-              Ask Price {askPrice && `(Mid: ${askPrice.toFixed(2)})`}
+              Ask Price {askPrice && `(Mid: ${formatPrice(askPrice)})`}
             </label>
             <div className="relative">
               <input
@@ -776,7 +778,6 @@ function App() {
                 key={`ask-price-${askPrice}`} // Force re-render when askPrice changes
                 className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white text-sm opacity-75"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
             </div>
           </div>
 
@@ -873,7 +874,7 @@ function App() {
                 Preço deve ter 2 casas decimais e estar dentro de 80% do preço de referência
                 {midPrice && (
                   <span className="block mt-1">
-                    Range válido: ${(midPrice * 0.2).toFixed(2)} - ${(midPrice * 1.8).toFixed(2)}
+                    Range válido: {formatPrice(midPrice * 0.2)} - {formatPrice(midPrice * 1.8)}
                   </span>
                 )}
               </p>
