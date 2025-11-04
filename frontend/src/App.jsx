@@ -535,17 +535,6 @@ function App() {
         // Continua mesmo se não conseguir verificar o status
       }
 
-      // Validate limit price if limit order
-      if (orderType === 'limit') {
-        const limitPriceNum = parseFloat(limitPrice)
-        if (!limitPrice || isNaN(limitPriceNum) || limitPriceNum <= 0) {
-          setError('Digite um preço válido para ordem limit')
-          setLoading(false)
-          return
-        }
-        
-        // Price validation will be done by backend - no frontend validation
-      }
       
       // Calculate size from USD quantity
       const size = askPrice ? parseFloat(quantityUsd) / askPrice : parseFloat(quantityUsd) / 100000
@@ -846,11 +835,7 @@ function App() {
                     // Just clear any previous errors - validation will be done by backend
                     setPriceError(null)
                   }}
-                  className={`w-full bg-gray-900 border rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 ${
-                    priceError 
-                      ? 'border-orange-500 focus:ring-orange-500' 
-                      : 'border-gray-700 focus:ring-blue-500'
-                  }`}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder={askPrice ? formatPrice(askPrice) : '100.789'}
                 />
               </div>
