@@ -1120,13 +1120,18 @@ async def create_order(order: OrderRequestModel):
                             min_price = reference_price * 0.2  # 20% of reference
                             max_price = reference_price * 1.8  # 180% of reference
                             
-                            if price < min_price or price > max_price:
-                                error_msg = (
-                                    f"Order price cannot be more than 80% away from the reference price. "
-                                    f"Reference price: {reference_price:.2f}, "
-                                    f"Valid range: {min_price:.2f} - {max_price:.2f}, "
-                                    f"Your price: {price:.2f}"
-                                )
+                                if price < min_price or price > max_price:
+                                    # Ensure all values are float before formatting
+                                    ref_price = float(reference_price) if reference_price else 0
+                                    min_p = float(min_price) if min_price else 0
+                                    max_p = float(max_price) if max_price else 0
+                                    price_val = float(price) if price else 0
+                                    error_msg = (
+                                        f"Order price cannot be more than 80% away from the reference price. "
+                                        f"Reference price: {ref_price:.2f}, "
+                                        f"Valid range: {min_p:.2f} - {max_p:.2f}, "
+                                        f"Your price: {price_val:.2f}"
+                                    )
                                 logger.error(f"❌ {error_msg}")
                                 log_order_request(order_data, error=error_msg)
                                 raise HTTPException(
