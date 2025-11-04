@@ -1082,39 +1082,48 @@ async def create_order(order: OrderRequestModel):
                     raise Exception("Invalid reference price from market data")
                 
                 if order.side.lower() == "buy":
-                    # For BUY orders: use ask_price + small margin to be very aggressive
+                    # For BUY orders: use ask_price + margin to be very aggressive
+                    # Use a more conservative margin to ensure price is valid
                     if ask_price and ask_price > 0:
-                        # Use ask_price + 0.1% to ensure we can buy immediately
-                        price = float(ask_price) * 1.001
-                        logger.info(f"Market BUY using ask_price + 0.1%: {price} (ask: {ask_price}, mid: {reference_price})")
+                        # Use ask_price + 0.5% to ensure we can buy immediately
+                        price = float(ask_price) * 1.005
+                        logger.info(f"Market BUY using ask_price + 0.5%: {price} (ask: {ask_price}, mid: {reference_price})")
                     else:
-                        # Fallback: use mid_price + 0.2% to be aggressive
-                        price = float(reference_price) * 1.002
-                        logger.info(f"Market BUY using mid_price + 0.2%: {price} (mid: {reference_price})")
+                        # Fallback: use mid_price + 1% to be aggressive
+                        price = float(reference_price) * 1.01
+                        logger.info(f"Market BUY using mid_price + 1%: {price} (mid: {reference_price})")
                 else:  # sell
-                    # For SELL orders: use bid_price - small margin to be very aggressive
+                    # For SELL orders: use bid_price - margin to be very aggressive
                     if bid_price and bid_price > 0:
-                        # Use bid_price - 0.1% to ensure we can sell immediately
-                        price = float(bid_price) * 0.999
-                        logger.info(f"Market SELL using bid_price - 0.1%: {price} (bid: {bid_price}, mid: {reference_price})")
+                        # Use bid_price - 0.5% to ensure we can sell immediately
+                        price = float(bid_price) * 0.995
+                        logger.info(f"Market SELL using bid_price - 0.5%: {price} (bid: {bid_price}, mid: {reference_price})")
                     else:
-                        # Fallback: use mid_price - 0.2% to be aggressive
-                        price = float(reference_price) * 0.998
-                        logger.info(f"Market SELL using mid_price - 0.2%: {price} (mid: {reference_price})")
+                        # Fallback: use mid_price - 1% to be aggressive
+                        price = float(reference_price) * 0.99
+                        logger.info(f"Market SELL using mid_price - 1%: {price} (mid: {reference_price})")
                 
                 # Validate price is within Hyperliquid's acceptable range (20% to 180% of reference)
                 min_valid_price = reference_price * 0.2
                 max_valid_price = reference_price * 1.8
                 
+                # Ensure price is within valid range BEFORE rounding
                 if price < min_valid_price:
-                    logger.warning(f"Price {price} below minimum {min_valid_price}, adjusting...")
-                    price = min_valid_price
+                    logger.warning(f"Price {price} below minimum {min_valid_price}, adjusting to minimum...")
+                    price = min_valid_price * 1.01  # Add 1% margin to minimum
                 elif price > max_valid_price:
-                    logger.warning(f"Price {price} above maximum {max_valid_price}, adjusting...")
-                    price = max_valid_price
+                    logger.warning(f"Price {price} above maximum {max_valid_price}, adjusting to maximum...")
+                    price = max_valid_price * 0.99  # Subtract 1% margin from maximum
                 
-                # Round to 2 decimal places for price
+                # Round to 2 decimal places for price (Hyperliquid tick size)
                 price = round(price, 2)
+                
+                # Final validation: ensure price is still within range after rounding
+                if price < min_valid_price:
+                    price = round(min_valid_price * 1.01, 2)
+                elif price > max_valid_price:
+                    price = round(max_valid_price * 0.99, 2)
+                
                 logger.info(f"✅ Market order final price: {price} (side: {order.side}, reference: {reference_price:.2f}, range: {min_valid_price:.2f}-{max_valid_price:.2f})")
                     
             except Exception as e:
