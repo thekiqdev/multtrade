@@ -786,36 +786,34 @@ function App() {
               <div className="relative">
                 <input
                   type="text"
-                  value={limitPrice ? formatPrice(parseFloat(limitPrice.replace(/[^0-9.]/g, '') || 0)) : ''}
+                  value={limitPrice}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/[^0-9.]/g, '') // Remove tudo exceto números e ponto
+                    const rawValue = e.target.value
+                    // Remove tudo exceto números e ponto decimal
+                    const cleanedValue = rawValue.replace(/[^0-9.]/g, '')
+                    
+                    // Prevenir múltiplos pontos decimais
+                    const parts = cleanedValue.split('.')
+                    let finalValue = parts[0]
+                    if (parts.length > 1) {
+                      finalValue += '.' + parts.slice(1).join('')
+                    }
+                    
                     setPriceError(null)
-                    
-                    // Allow typing - will validate on blur
-                    if (value === '' || value === '.') {
-                      setLimitPrice(value)
-                      return
-                    }
-                    
-                    // Allow typing with decimal places
-                    const num = parseFloat(value)
-                    if (!isNaN(num) && num > 0) {
-                      setLimitPrice(value)
-                    } else if (value === '') {
-                      setLimitPrice(value)
-                    }
+                    setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
-                    const value = e.target.value.replace(/[^0-9.]/g, '')
-                    if (!value || value === '') {
+                    const rawValue = e.target.value.replace(/[^0-9.]/g, '')
+                    if (!rawValue || rawValue === '' || rawValue === '.') {
                       setPriceError(null)
                       setLimitPrice('')
                       return
                     }
                     
-                    const num = parseFloat(value)
+                    const num = parseFloat(rawValue)
                     if (isNaN(num) || num <= 0) {
                       setPriceError('Digite um preço válido maior que zero')
+                      setLimitPrice('')
                       return
                     }
                     
