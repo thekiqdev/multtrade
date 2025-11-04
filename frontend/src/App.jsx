@@ -667,11 +667,14 @@ function App() {
   const formatPrice = (price) => {
     if (!price) return '0'
     // Format as integer with thousand separator (no decimal places)
-    // Uses comma as thousand separator (US format: 100,581)
-    return new Intl.NumberFormat('en-US', {
+    // Uses point as thousand separator (like exchange: 100.581)
+    // Format: 100.581 (no decimals, point as separator)
+    const formatted = new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(price)
+    // Replace comma with point for thousand separator (like exchange format)
+    return formatted.replace(/,/g, '.')
   }
 
   const formatNumber = (num) => {
