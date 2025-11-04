@@ -969,9 +969,10 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    // Use askPrice (same as shown in BTC field) - it's already the mid_price
-                    if (askPrice && askPrice > 0) {
-                      const num = parseFloat(askPrice)
+                    // Use midPrice directly (the actual numeric value, not formatted)
+                    // askPrice is the same as midPrice but we use midPrice for accuracy
+                    if (midPrice && midPrice > 0) {
+                      const num = parseFloat(midPrice)
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places
                         const rounded = Math.round(num * 1000) / 1000
@@ -982,12 +983,10 @@ function App() {
                         let rawValue = rounded.toString()
                         // Remove trailing zeros after decimal point
                         if (rawValue.includes('.')) {
+                          // Remove trailing zeros
                           rawValue = rawValue.replace(/\.?0+$/, '')
-                          // If all decimals were zeros, check if we need to add them back
-                          // But for Limit Price, we want to allow up to 3 decimals
-                          // So keep it as is if it has decimals, or add .000 if it's a whole number
+                          // If we removed all decimals, keep as integer
                           if (!rawValue.includes('.')) {
-                            // Whole number - store as is (no .000)
                             rawValue = rounded.toString().split('.')[0]
                           } else {
                             // Has decimals - keep them but limit to 3
@@ -996,13 +995,16 @@ function App() {
                             const decimalPart = parts[1].slice(0, 3) // Limit to 3 decimals
                             rawValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart
                           }
+                        } else {
+                          // Whole number - no decimals needed
+                          rawValue = rounded.toString().split('.')[0]
                         }
                         setLimitPrice(rawValue)
                         setPriceError(null)
                       }
                     }
                   }}
-                  disabled={!askPrice || askPrice <= 0}
+                  disabled={!midPrice || midPrice <= 0}
                   className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0"
                   title="Usar preço atual (Mid Price)"
                 >
