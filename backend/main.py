@@ -1138,6 +1138,7 @@ async def create_order(order: OrderRequestModel):
             # Limit orders: Create and schedule (Good Till Cancel - stays in order book)
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel - order stays in book until executed or cancelled
             logger.info("📅 Creating LIMIT order - will be SCHEDULED in order book (not executed immediately)")
+            logger.info(f"📌 Limit order price from user: {order.price}")
             
             # For limit orders, validate and round price to tick size
             # Hyperliquid BTC tick size is 0.01 (2 decimal places)
@@ -1152,7 +1153,9 @@ async def create_order(order: OrderRequestModel):
             
             # Round to 2 decimal places (tick size 0.01)
             price = round(price, 2)
-            logger.info(f"Limit order price (rounded to 2 decimals): {price}")
+            logger.info(f"✅ Limit order price (rounded to 2 decimals): {price}")
+            logger.info(f"📋 This order will be SCHEDULED in the order book with price {price}")
+            logger.info(f"⚠️  NOTE: If price is close to market, it may execute immediately. Otherwise, it will stay in order book.")
             
             # Validate price is within 80% of reference price (20% to 180% of mid price)
             # Hyperliquid requires: price cannot be more than 80% away from reference
