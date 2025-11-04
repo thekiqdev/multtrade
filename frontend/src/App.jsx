@@ -962,26 +962,23 @@ function App() {
                     const decimalPart = parts[1] || '000'
                     
                     // Format integer with thousand separator
-                    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-                    return `${formattedInteger}.${decimalPart.substring(0, 3)}`
-                  })() : '100.000'}
-                />
+                      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+                      return `${formattedInteger}.${decimalPart.substring(0, 3)}`
+                    })() : '100.000'}
+                  />
                 <button
                   type="button"
                   onClick={() => {
                     if (askPrice && askPrice > 0) {
-                      // Use the exact same value that's displayed in BTC field
-                      // The BTC field shows formatPrice(askPrice) which formats with thousand separator
-                      // Example: askPrice = 99898.5 → formatPrice shows "99.898"
-                      // We need to use the actual askPrice value (not the formatted display)
-                      // but ensure it has 3 decimal places
+                      // Use the exact askPrice value (mid_price from cache)
+                      // Round to 3 decimal places to match Limit Price format
                       const num = parseFloat(askPrice)
                       if (!isNaN(num) && num > 0) {
-                        // Round to 3 decimal places (ignore any extra decimals)
+                        // Round to 3 decimal places
                         const rounded = Math.round(num * 1000) / 1000
                         // Store as raw value with exactly 3 decimal places (no formatting)
                         // Example: 99898.5 → "99898.500"
-                        // The formatLimitPrice function will format it for display (e.g., "99.898.500")
+                        // The formatLimitPrice function will format it for display when needed
                         const rawValue = rounded.toFixed(3)
                         setLimitPrice(rawValue)
                         setPriceError(null)
@@ -990,9 +987,9 @@ function App() {
                   }}
                   disabled={!askPrice || askPrice <= 0}
                   className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0"
-                  title="Usar preço mid atual do BTC"
+                  title="Usar preço atual do BTC"
                 >
-                  mid
+                  BTC
                 </button>
               </div>
               {priceError && (
