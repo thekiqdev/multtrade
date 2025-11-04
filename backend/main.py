@@ -760,7 +760,7 @@ async def get_market_data(symbol: str):
             mid_price = float(market_data[asset_index])
             logger.info(f"Mid price for {symbol_upper} at index {asset_index}: {mid_price}")
         else:
-            raise Exception(f"Unexpected market_data type: {type(market_data)}")
+            raise Exception(f"Unexpected market_data type: {str(type(market_data))}")
         
         if not market_data:
             raise Exception("all_mids() returned None or empty")
@@ -1217,7 +1217,7 @@ async def create_order(order: OrderRequestModel):
                                 elif isinstance(market_price, (int, float)):
                                     market_price = float(market_price)
                                 else:
-                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
+                                    raise ValueError(f"Unexpected type for market_price: {str(type(market_price))}")
                                 
                                 if market_price > 0:
                                     # Calculate aggressive price and ensure it's float
@@ -1249,7 +1249,7 @@ async def create_order(order: OrderRequestModel):
                                 elif isinstance(market_price, (int, float)):
                                     market_price = float(market_price)
                                 else:
-                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
+                                    raise ValueError(f"Unexpected type for market_price: {str(type(market_price))}")
                                 
                                 if market_price > 0:
                                     # Calculate aggressive price and ensure it's float
