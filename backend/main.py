@@ -715,7 +715,7 @@ async def get_market_data(symbol: str):
         # Get metadata to find asset index
         logger.info("Calling info_client.meta()...")
         meta = info_client.meta()
-        logger.info(f"Meta response type: {str(type(meta))}")
+        logger.info(f"Meta response type: {type(meta)}")
         logger.info(f"Meta keys: {list(meta.keys()) if isinstance(meta, dict) else 'Not a dict'}")
         
         if not meta or "universe" not in meta:
@@ -736,7 +736,7 @@ async def get_market_data(symbol: str):
         logger.info(f"Calling info_client.all_mids()...")
         logger.info(f"Looking for asset_index: {asset_index}")
         market_data = info_client.all_mids()
-        logger.info(f"Market data type: {str(type(market_data))}")
+        logger.info(f"Market data type: {type(market_data)}")
         logger.info(f"Market data length: {len(market_data) if market_data else 0}")
         
         # Handle both dict and list responses
@@ -760,7 +760,7 @@ async def get_market_data(symbol: str):
             mid_price = float(market_data[asset_index])
             logger.info(f"Mid price for {symbol_upper} at index {asset_index}: {mid_price}")
         else:
-            raise Exception(f"Unexpected market_data type: {str(type(market_data))}")
+            raise Exception(f"Unexpected market_data type: {type(market_data)}")
         
         if not market_data:
             raise Exception("all_mids() returned None or empty")
@@ -1121,16 +1121,11 @@ async def create_order(order: OrderRequestModel):
                             max_price = reference_price * 1.8  # 180% of reference
                             
                             if price < min_price or price > max_price:
-                                # Ensure all values are float before formatting
-                                ref_price = float(reference_price) if reference_price else 0
-                                min_p = float(min_price) if min_price else 0
-                                max_p = float(max_price) if max_price else 0
-                                price_val = float(price) if price else 0
                                 error_msg = (
                                     f"Order price cannot be more than 80% away from the reference price. "
-                                    f"Reference price: {ref_price:.2f}, "
-                                    f"Valid range: {min_p:.2f} - {max_p:.2f}, "
-                                    f"Your price: {price_val:.2f}"
+                                    f"Reference price: {reference_price:.2f}, "
+                                    f"Valid range: {min_price:.2f} - {max_price:.2f}, "
+                                    f"Your price: {price:.2f}"
                                 )
                                 logger.error(f"❌ {error_msg}")
                                 log_order_request(order_data, error=error_msg)
@@ -1138,11 +1133,7 @@ async def create_order(order: OrderRequestModel):
                                     status_code=400,
                                     detail=error_msg
                                 )
-                            # Ensure values are float before formatting
-                            price_val = float(price) if price else 0
-                            min_p = float(min_price) if min_price else 0
-                            max_p = float(max_price) if max_price else 0
-                            logger.info(f"Price validation OK: {price_val:.2f} is within range ({min_p:.2f} - {max_p:.2f})")
+                            logger.info(f"Price validation OK: {price:.2f} is within range ({min_price:.2f} - {max_price:.2f})")
                 except HTTPException:
                     raise
                 except Exception as e:
@@ -1217,23 +1208,14 @@ async def create_order(order: OrderRequestModel):
                                 elif isinstance(market_price, (int, float)):
                                     market_price = float(market_price)
                                 else:
-                                    raise ValueError(f"Unexpected type for market_price: {str(type(market_price))}")
+                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
                                 
                                 if market_price > 0:
-                                    # Calculate aggressive price and ensure it's float
-                                    # Do multiplication with explicit float conversion
-                                    market_price_float = float(market_price)
-                                    calculated_price = market_price_float * 1.05  # 5% above to ensure execution
-                                    aggressive_price = float(calculated_price)
-                                    # Verify it's actually a float
-                                    if not isinstance(aggressive_price, (int, float)):
-                                        raise ValueError(f"aggressive_price is not numeric: {str(type(aggressive_price))}")
+                                    aggressive_price = float(market_price * 1.05)  # 5% above to ensure execution
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                error_detail = str(e) if e else "Unknown error"
-                                logger.error(f"Error converting market_price: {error_detail}, type: {str(type(market_price))}, value: {str(repr(market_price))}")
-                                raise Exception(f"Could not convert market price to float: {error_detail}")
+                                raise Exception(f"Could not convert market price to float: {str(e)}")
                         else:
                             raise Exception("No market price available in cache")
                     else:
@@ -1249,23 +1231,14 @@ async def create_order(order: OrderRequestModel):
                                 elif isinstance(market_price, (int, float)):
                                     market_price = float(market_price)
                                 else:
-                                    raise ValueError(f"Unexpected type for market_price: {str(type(market_price))}")
+                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
                                 
                                 if market_price > 0:
-                                    # Calculate aggressive price and ensure it's float
-                                    # Do multiplication with explicit float conversion
-                                    market_price_float = float(market_price)
-                                    calculated_price = market_price_float * 0.95  # 5% below to ensure execution
-                                    aggressive_price = float(calculated_price)
-                                    # Verify it's actually a float
-                                    if not isinstance(aggressive_price, (int, float)):
-                                        raise ValueError(f"aggressive_price is not numeric: {str(type(aggressive_price))}")
+                                    aggressive_price = float(market_price * 0.95)  # 5% below to ensure execution
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
-                                error_detail = str(e) if e else "Unknown error"
-                                logger.error(f"Error converting market_price: {error_detail}, type: {str(type(market_price))}, value: {str(repr(market_price))}")
-                                raise Exception(f"Could not convert market price to float: {error_detail}")
+                                raise Exception(f"Could not convert market price to float: {str(e)}")
                         else:
                             raise Exception("No market price available in cache")
                 else:
@@ -1286,30 +1259,24 @@ async def create_order(order: OrderRequestModel):
                             
                         if mid_price > 0:
                             if order.side.lower() == "buy":
-                                calculated_price = float(mid_price) * 1.05
+                                aggressive_price = float(mid_price * 1.05)
                             else:
-                                calculated_price = float(mid_price) * 0.95
-                            # Ensure aggressive_price is actually a float
-                            aggressive_price = float(calculated_price)
+                                aggressive_price = float(mid_price * 0.95)
                         else:
-                            raise Exception("Invalid market price from API (mid_price <= 0)")
+                            raise Exception("Invalid market price from API")
                     else:
-                        raise Exception("Could not get market price from API")
+                        raise Exception("Could not get market price")
                 
                 # Ensure aggressive_price was set
                 if aggressive_price is None:
-                    raise Exception("aggressive_price was not set")
+                    raise Exception("aggressive_price was not calculated")
                 
-                # Ensure it's a float before rounding and logging
-                try:
-                    aggressive_price = float(aggressive_price)
-                    aggressive_price = round(float(aggressive_price), 2)
-                    # Ensure it's still float after rounding
-                    aggressive_price = float(aggressive_price)
-                    logger.info(f"Using aggressive price for market order: {aggressive_price}")
-                except (ValueError, TypeError) as format_err:
-                    logger.error(f"Error formatting aggressive_price: {str(format_err)}, type: {str(type(aggressive_price))}, value: {str(aggressive_price)}")
-                    raise Exception(f"Could not format aggressive price: {str(format_err)}")
+                # Ensure it's a float before rounding
+                aggressive_price = float(aggressive_price)
+                aggressive_price = round(aggressive_price, 2)
+                aggressive_price = float(aggressive_price)  # Ensure still float after round
+                
+                logger.info(f"Using aggressive price for market order: {aggressive_price}")
                 
                 # Use IOC (Immediate or Cancel) limit order as market order
                 result = exchange.order(
