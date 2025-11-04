@@ -622,70 +622,49 @@ function App() {
       // Calculate size from USD quantity
       const size = askPrice ? parseFloat(quantityUsd) / askPrice : parseFloat(quantityUsd) / 100000
 
+      // Parse price before creating orderData
+      let parsedPrice = null
+      if (orderType === 'limit' && limitPrice) {
+        // Remove all formatting and extract numeric value correctly
+        const limitPriceStr = limitPrice.toString()
+        let cleaned = limitPriceStr.replace(/[^0-9.]/g, '')
+        
+        if (cleaned && cleaned !== '' && cleaned !== '.') {
+          const lastDotIndex = cleaned.lastIndexOf('.')
+          
+          if (lastDotIndex === -1) {
+            // No decimal point - remove all dots (thousand separators)
+            parsedPrice = parseFloat(cleaned.replace(/\./g, ''))
+          } else {
+            // Has decimal point - last dot is decimal separator
+            const integerPartRaw = cleaned.substring(0, lastDotIndex)
+            const integerPart = integerPartRaw.replace(/\./g, '') // Remove thousand separators
+            const decimalPart = cleaned.substring(lastDotIndex + 1)
+            const numericValue = `${integerPart}.${decimalPart}`
+            parsedPrice = parseFloat(numericValue)
+          }
+          
+          console.log('🔍 Price parsing result:', {
+            original: limitPrice,
+            cleaned: cleaned,
+            parsed: parsedPrice
+          })
+          
+          if (isNaN(parsedPrice) || parsedPrice <= 0) {
+            setError('Preço inválido. Verifique o valor digitado.')
+            setLoading(false)
+            return
+          }
+        }
+      }
+
       const orderData = {
         symbol: symbol,
         side: side,
         order_type: orderType,
         quantity_usd: parseFloat(quantityUsd),
         size: size,
-        price: orderType === 'limit' && limitPrice ? (() => {
-          // Remove all formatting and extract numeric value correctly
-          // The limitPrice should be stored as raw value (e.g., "111111" or "111111.789")
-          // But it might have formatting from display, so we need to clean it
-          
-          // Convert to string first
-          const limitPriceStr = limitPrice.toString()
-          
-          // Remove all non-numeric characters except decimal point
-          let cleaned = limitPriceStr.replace(/[^0-9.]/g, '')
-          
-          if (!cleaned || cleaned === '' || cleaned === '.') {
-            console.warn('⚠️ Invalid limitPrice:', limitPrice)
-            return null
-          }
-          
-          // Find the last dot - that's the decimal separator
-          const lastDotIndex = cleaned.lastIndexOf('.')
-          
-          if (lastDotIndex === -1) {
-            // No decimal point - just remove all dots (thousand separators if any)
-            const numValue = parseFloat(cleaned.replace(/\./g, ''))
-            console.log('🔍 Price parsing (no decimal):', {
-              original: limitPrice,
-              cleaned: cleaned,
-              parsed: numValue
-            })
-            return numValue
-          }
-          
-          // Has decimal point - last dot is decimal separator
-          // Everything before last dot is integer part (may have thousand separators)
-          const integerPartRaw = cleaned.substring(0, lastDotIndex)
-          const integerPart = integerPartRaw.replace(/\./g, '') // Remove all thousand separators
-          const decimalPart = cleaned.substring(lastDotIndex + 1)
-          
-          // Combine: integerPart.decimalPart
-          const numericValue = `${integerPart}.${decimalPart}`
-          const parsed = parseFloat(numericValue)
-          
-          // Log for debugging
-          console.log('🔍 Price parsing (with decimal):', {
-            original: limitPrice,
-            cleaned: cleaned,
-            integerPart: integerPart,
-            decimalPart: decimalPart,
-            numericValue: numericValue,
-            parsed: parsed
-          })
-          
-          // Validate parsed value
-          if (isNaN(parsed) || parsed <= 0) {
-            console.error('❌ Invalid parsed price:', parsed)
-            return null
-          }
-          
-          return parsed
-        })() : null,
+        price: parsedPrice,
         leverage: leverage,
         takeprofit: takeprofit ? parseFloat(takeprofit) : null,
         stoploss: stoploss ? parseFloat(stoploss) : null
