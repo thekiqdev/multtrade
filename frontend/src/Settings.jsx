@@ -26,7 +26,6 @@ function Settings() {
         setWebsocketStatus(response.data.websocket_running || false)
         setWebsocketPrices(response.data.websocket_prices || {})
       } catch (err) {
-        console.error('Error polling WebSocket status:', err)
       }
     }, 2000) // Check status every 2 seconds
     
@@ -151,12 +150,10 @@ function Settings() {
           setRestPrices(prices)
           setRestStatus(true)
         } catch (err) {
-          console.error('Error fetching REST prices:', err)
           setRestStatus(false)
         }
       }
     } catch (err) {
-      console.error('Error loading config:', err)
       // Fallback to localStorage only
       const storedRest = localStorage.getItem('rest_enabled')
       const storedWebsocket = localStorage.getItem('websocket_enabled')
@@ -198,7 +195,6 @@ function Settings() {
         setWebsocketStatus(statusResponse.data.websocket_running || false)
         setWebsocketPrices(statusResponse.data.websocket_prices || {})
       } catch (err) {
-        console.error('Error fetching status:', err)
       }
       
       // Don't reload - stay on Settings page
@@ -283,9 +279,7 @@ function Settings() {
                       // Trigger custom event to notify App.jsx to reconnect (works in same tab)
                       window.dispatchEvent(new Event('websocket-config-changed'))
                       
-                      console.log('✅ WebSocket', newValue ? 'ativado' : 'desativado', 'com sucesso')
                     } catch (err) {
-                      console.error('❌ Erro ao atualizar WebSocket:', err)
                       // Revert on error
                       setWebsocketEnabled(!newValue)
                       localStorage.setItem('websocket_enabled', (!newValue).toString())
