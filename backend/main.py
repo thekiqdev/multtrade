@@ -1227,7 +1227,7 @@ async def create_order(order: OrderRequestModel):
                                     aggressive_price = float(calculated_price)
                                     # Verify it's actually a float
                                     if not isinstance(aggressive_price, (int, float)):
-                                        raise ValueError(f"aggressive_price is not numeric: {type(aggressive_price)}")
+                                        raise ValueError(f"aggressive_price is not numeric: {str(type(aggressive_price))}")
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
@@ -1259,7 +1259,7 @@ async def create_order(order: OrderRequestModel):
                                     aggressive_price = float(calculated_price)
                                     # Verify it's actually a float
                                     if not isinstance(aggressive_price, (int, float)):
-                                        raise ValueError(f"aggressive_price is not numeric: {type(aggressive_price)}")
+                                        raise ValueError(f"aggressive_price is not numeric: {str(type(aggressive_price))}")
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
@@ -1308,7 +1308,7 @@ async def create_order(order: OrderRequestModel):
                     aggressive_price = float(aggressive_price)
                     logger.info(f"Using aggressive price for market order: {aggressive_price}")
                 except (ValueError, TypeError) as format_err:
-                    logger.error(f"Error formatting aggressive_price: {format_err}, type: {type(aggressive_price)}, value: {aggressive_price}")
+                    logger.error(f"Error formatting aggressive_price: {str(format_err)}, type: {str(type(aggressive_price))}, value: {str(aggressive_price)}")
                     raise Exception(f"Could not format aggressive price: {str(format_err)}")
                 
                 # Use IOC (Immediate or Cancel) limit order as market order
