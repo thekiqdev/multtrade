@@ -1019,85 +1019,72 @@ async def create_order(order: OrderRequestModel):
             # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel)
             order_type = {"limit": {"tif": "Ioc"}}  # Immediate or Cancel for market orders
             
-            # For market orders, we need to use an aggressive price to ensure immediate execution
-            # For buy orders: use ask_price (or higher) to ensure we can buy immediately
-            # For sell orders: use bid_price (or lower) to ensure we can sell immediately
+            # For market orders, use real-time prices from cache (updated by WebSocket)
+            # Use ask_price for BUY orders (to match sellers) and bid_price for SELL orders (to match buyers)
             try:
-                # Get market data with bid/ask prices
-                market_data_result = await get_market_data(order.symbol)
+                symbol_upper = order.symbol.upper()
                 
-                if market_data_result and market_data_result.get("mid_price"):
-                    mid_price = float(market_data_result.get("mid_price", 0))
-                    bid_price = market_data_result.get("bid_price")
-                    ask_price = market_data_result.get("ask_price")
+                # Get price from cache (updated by WebSocket in real-time)
+                if symbol_upper in price_cache:
+                    cached = price_cache[symbol_upper]
+                    mid_price = cached.get("mid_price")
+                    bid_price = cached.get("bid_price")
+                    ask_price = cached.get("ask_price")
                     
                     if order.side.lower() == "buy":
-                        # For buy orders, use ask_price if available (what sellers are asking)
-                        # If not available, use mid_price + 0.5% to be aggressive
+                        # For BUY orders, use ask_price (what sellers are asking) to ensure immediate execution
                         if ask_price and ask_price > 0:
                             price = float(ask_price)
-                            logger.info(f"Market BUY order using ask_price: {price}")
+                            logger.info(f"Market BUY order using ask_price from cache: {price}")
+                        elif mid_price and mid_price > 0:
+                            # Fallback: use mid_price + 0.5% to be aggressive
+                            price = float(mid_price) * 1.005
+                            logger.info(f"Market BUY order using mid_price + 0.5% from cache: {price} (mid: {mid_price})")
                         else:
-                            # Use mid_price + 0.5% to ensure we can buy immediately
-                            price = mid_price * 1.005
-                            logger.info(f"Market BUY order using mid_price + 0.5%: {price} (mid: {mid_price})")
+                            raise Exception("No valid ask_price or mid_price in cache for BUY order")
                     else:  # sell
-                        # For sell orders, use bid_price if available (what buyers are bidding)
-                        # If not available, use mid_price - 0.5% to be aggressive
+                        # For SELL orders, use bid_price (what buyers are bidding) to ensure immediate execution
                         if bid_price and bid_price > 0:
                             price = float(bid_price)
-                            logger.info(f"Market SELL order using bid_price: {price}")
+                            logger.info(f"Market SELL order using bid_price from cache: {price}")
+                        elif mid_price and mid_price > 0:
+                            # Fallback: use mid_price - 0.5% to be aggressive
+                            price = float(mid_price) * 0.995
+                            logger.info(f"Market SELL order using mid_price - 0.5% from cache: {price} (mid: {mid_price})")
                         else:
-                            # Use mid_price - 0.5% to ensure we can sell immediately
-                            price = mid_price * 0.995
-                            logger.info(f"Market SELL order using mid_price - 0.5%: {price} (mid: {mid_price})")
-                    
-                    # Round to 2 decimal places for price
-                    if price > 0:
-                        price = round(price, 2)
-                        logger.info(f"Market order calculated price: {price} (side: {order.side}, mid: {mid_price})")
-                        
-                        # Validate price is within 80% of reference price (20% to 180% of mid price)
-                        # Hyperliquid requires: price cannot be more than 80% away from reference
-                        min_price = mid_price * 0.2  # 20% of reference
-                        max_price = mid_price * 1.8  # 180% of reference
-                        
-                        if price < min_price or price > max_price:
-                            # Price is outside valid range, adjust to valid range
-                            if order.side.lower() == "buy":
-                                # For buy, use max_price (180% of mid) to be very aggressive
-                                price = max_price
-                                logger.warning(f"Market BUY price {price} was outside range, adjusted to {max_price} (max valid)")
-                            else:  # sell
-                                # For sell, use min_price (20% of mid) to be very aggressive
-                                price = min_price
-                                logger.warning(f"Market SELL price {price} was outside range, adjusted to {min_price} (min valid)")
-                        
-                        # Final validation: ensure price is still within valid range
-                        if price < min_price or price > max_price:
-                            error_msg = (
-                                f"Order price cannot be more than 80% away from the reference price. "
-                                f"Reference price: {mid_price:.2f}, "
-                                f"Valid range: {min_price:.2f} - {max_price:.2f}, "
-                                f"Calculated price: {price:.2f}"
-                            )
-                            logger.error(f"❌ {error_msg}")
-                            raise HTTPException(
-                                status_code=400,
-                                detail=error_msg
-                            )
-                        
-                        logger.info(f"Market order final validated price: {price} (within range {min_price:.2f} - {max_price:.2f})")
-                    else:
-                        raise Exception("Could not determine valid price for market order")
+                            raise Exception("No valid bid_price or mid_price in cache for SELL order")
                 else:
-                    raise Exception("Could not get market data for market order")
+                    raise Exception(f"No cached price data available for {symbol_upper}")
+                    
+                # Round to 2 decimal places for price
+                if price > 0:
+                    price = round(price, 2)
+                    logger.info(f"Market order final price: {price} (side: {order.side}, from cache)")
+                else:
+                    raise Exception("Calculated price is invalid")
+                    
             except Exception as e:
-                logger.error(f"Error getting market price for market order: {e}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Could not get market price for market order: {str(e)}. Please try again or use a limit order."
-                )
+                logger.error(f"Error getting market price from cache for market order: {e}")
+                # Try to fetch fresh data as fallback
+                try:
+                    market_data_result = await get_market_data(order.symbol)
+                    if market_data_result:
+                        if order.side.lower() == "buy":
+                            price = market_data_result.get("ask_price") or (market_data_result.get("mid_price", 0) * 1.005)
+                        else:
+                            price = market_data_result.get("bid_price") or (market_data_result.get("mid_price", 0) * 0.995)
+                        price = round(float(price), 2) if price > 0 else None
+                        if price and price > 0:
+                            logger.info(f"Market order using fallback price from fresh API: {price}")
+                        else:
+                            raise
+                    else:
+                        raise
+                except:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {str(e)}"
+                    )
         else:
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel for limit orders
             # For limit orders, validate and round price to tick size
