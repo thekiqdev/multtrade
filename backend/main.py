@@ -1059,78 +1059,35 @@ async def create_order(order: OrderRequestModel):
             except Exception as e:
                 print(f"Warning: Could not set leverage: {e}")
         
-        # Build order type
-        if order.order_type.lower() == "market":
-            # Hyperliquid market orders are actually limit orders with TIF "Ioc" (Immediate or Cancel)
-            order_type = {"limit": {"tif": "Ioc"}}  # Immediate or Cancel for market orders
-            
-            # For market orders, use real-time prices from cache (updated by WebSocket)
-            # Use ask_price for BUY orders (to match sellers) and bid_price for SELL orders (to match buyers)
+        # Get asset_index for the symbol (required for post_action)
+        asset_index = None
+        if info_client:
             try:
-                symbol_upper = order.symbol.upper()
-                
-                # Get price from cache (updated by WebSocket in real-time)
-                if symbol_upper in price_cache:
-                    cached = price_cache[symbol_upper]
-                    mid_price = cached.get("mid_price")
-                    bid_price = cached.get("bid_price")
-                    ask_price = cached.get("ask_price")
-                    
-                    if order.side.lower() == "buy":
-                        # For BUY orders, use ask_price (what sellers are asking) to ensure immediate execution
-                        if ask_price and ask_price > 0:
-                            price = float(ask_price)
-                            logger.info(f"Market BUY order using ask_price from cache: {price}")
-                        elif mid_price and mid_price > 0:
-                            # Fallback: use mid_price + 0.5% to be aggressive
-                            price = float(mid_price) * 1.005
-                            logger.info(f"Market BUY order using mid_price + 0.5% from cache: {price} (mid: {mid_price})")
-                        else:
-                            raise Exception("No valid ask_price or mid_price in cache for BUY order")
-                    else:  # sell
-                        # For SELL orders, use bid_price (what buyers are bidding) to ensure immediate execution
-                        if bid_price and bid_price > 0:
-                            price = float(bid_price)
-                            logger.info(f"Market SELL order using bid_price from cache: {price}")
-                        elif mid_price and mid_price > 0:
-                            # Fallback: use mid_price - 0.5% to be aggressive
-                            price = float(mid_price) * 0.995
-                            logger.info(f"Market SELL order using mid_price - 0.5% from cache: {price} (mid: {mid_price})")
-                        else:
-                            raise Exception("No valid bid_price or mid_price in cache for SELL order")
-                else:
-                    raise Exception(f"No cached price data available for {symbol_upper}")
-                    
-                # Round to 2 decimal places for price
-                if price > 0:
-                    price = round(price, 2)
-                    logger.info(f"Market order final price: {price} (side: {order.side}, from cache)")
-                else:
-                    raise Exception("Calculated price is invalid")
-                    
+                meta = info_client.meta()
+                if meta and "universe" in meta:
+                    for i, asset in enumerate(meta["universe"]):
+                        if asset.get("name") == order.symbol.upper():
+                            asset_index = i
+                            break
             except Exception as e:
-                logger.error(f"Error getting market price from cache for market order: {e}")
-                # Try to fetch fresh data as fallback
-                try:
-                    market_data_result = await get_market_data(order.symbol)
-                    if market_data_result:
-                        if order.side.lower() == "buy":
-                            price = market_data_result.get("ask_price") or (market_data_result.get("mid_price", 0) * 1.005)
-                        else:
-                            price = market_data_result.get("bid_price") or (market_data_result.get("mid_price", 0) * 0.995)
-                        price = round(float(price), 2) if price > 0 else None
-                        if price and price > 0:
-                            logger.info(f"Market order using fallback price from fresh API: {price}")
-                        else:
-                            raise
-                    else:
-                        raise
-                except:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Could not get market price for market order. Please try again or use a limit order. Error: {str(e)}"
-                    )
+                logger.warning(f"Could not get asset_index: {e}")
+        
+        if asset_index is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not find asset_index for symbol {order.symbol}. Please check if the symbol is valid."
+            )
+        
+        logger.info(f"Using asset_index {asset_index} for {order.symbol}")
+        
+        # Build order payload based on order type
+        if order.order_type.lower() == "market":
+            # Market orders: NO price field, use {"market": {}}
+            order_type = {"market": {}}
+            price = None  # Market orders don't use price
+            logger.info("Market order: using market order type (no price field)")
         else:
+            # Limit orders: require price field, use {"limit": {"tif": "Gtc"}}
             order_type = {"limit": {"tif": "Gtc"}}  # Good Till Cancel for limit orders
             # For limit orders, validate and round price to tick size
             # Hyperliquid BTC tick size is 0.01 (2 decimal places)
