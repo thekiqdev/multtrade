@@ -717,8 +717,9 @@ function App() {
     const decimalPart = cleaned.substring(lastDotIndex + 1)
     
     // Format integer part with thousand separator (point) only if 4+ digits
+    // This prevents formatting during typing of small numbers
     let formattedInteger = integerPart
-    if (integerPart.length > 3) {
+    if (integerPart.length >= 4) {
       formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     }
     
