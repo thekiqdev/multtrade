@@ -1148,13 +1148,6 @@ async def create_order(order: OrderRequestModel):
             # Round to 2 decimal places (tick size 0.01)
             price = round(price, 2)
             logger.info(f"Limit order price (rounded to 2 decimals): {price}")
-        else:
-            # Invalid order type
-            logger.error(f"❌ Invalid order type: '{order.order_type}' (expected 'market' or 'limit')")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid order type: '{order.order_type}'. Must be 'market' or 'limit'."
-            )
             
             # Validate price is within 80% of reference price (20% to 180% of mid price)
             # Hyperliquid requires: price cannot be more than 80% away from reference
