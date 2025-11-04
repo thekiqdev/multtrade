@@ -1190,6 +1190,7 @@ async def create_order(order: OrderRequestModel):
             logger.info(f"  Order Type: market (using IOC limit with aggressive price)")
             
             # Get current market price for aggressive limit order
+            aggressive_price = None
             try:
                 symbol_upper = order.symbol.upper()
                 if symbol_upper in price_cache:
@@ -1202,9 +1203,15 @@ async def create_order(order: OrderRequestModel):
                         if market_price is not None:
                             # Ensure market_price is float (could be string from cache)
                             try:
-                                market_price = float(market_price) if not isinstance(market_price, (int, float)) else float(market_price)
+                                if isinstance(market_price, str):
+                                    market_price = float(market_price)
+                                elif isinstance(market_price, (int, float)):
+                                    market_price = float(market_price)
+                                else:
+                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
+                                
                                 if market_price > 0:
-                                    aggressive_price = market_price * 1.05  # 5% above to ensure execution
+                                    aggressive_price = float(market_price) * 1.05  # 5% above to ensure execution
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
@@ -1219,9 +1226,15 @@ async def create_order(order: OrderRequestModel):
                         if market_price is not None:
                             # Ensure market_price is float (could be string from cache)
                             try:
-                                market_price = float(market_price) if not isinstance(market_price, (int, float)) else float(market_price)
+                                if isinstance(market_price, str):
+                                    market_price = float(market_price)
+                                elif isinstance(market_price, (int, float)):
+                                    market_price = float(market_price)
+                                else:
+                                    raise ValueError(f"Unexpected type for market_price: {type(market_price)}")
+                                
                                 if market_price > 0:
-                                    aggressive_price = market_price * 0.95  # 5% below to ensure execution
+                                    aggressive_price = float(market_price) * 0.95  # 5% below to ensure execution
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
@@ -1234,17 +1247,32 @@ async def create_order(order: OrderRequestModel):
                     if market_data:
                         mid_price = market_data.get("mid_price", 0)
                         # Ensure mid_price is a float, not string
-                        mid_price = float(mid_price) if mid_price else 0
+                        try:
+                            if isinstance(mid_price, str):
+                                mid_price = float(mid_price)
+                            elif isinstance(mid_price, (int, float)):
+                                mid_price = float(mid_price)
+                            else:
+                                mid_price = 0
+                        except (ValueError, TypeError):
+                            mid_price = 0
+                            
                         if mid_price > 0:
                             if order.side.lower() == "buy":
-                                aggressive_price = mid_price * 1.05
+                                aggressive_price = float(mid_price) * 1.05
                             else:
-                                aggressive_price = mid_price * 0.95
+                                aggressive_price = float(mid_price) * 0.95
                         else:
-                            raise Exception("Invalid market price from API")
+                            raise Exception("Invalid market price from API (mid_price <= 0)")
                     else:
-                        raise Exception("Could not get market price")
+                        raise Exception("Could not get market price from API")
                 
+                # Ensure aggressive_price was set
+                if aggressive_price is None:
+                    raise Exception("aggressive_price was not set")
+                
+                # Ensure it's a float before rounding
+                aggressive_price = float(aggressive_price)
                 aggressive_price = round(aggressive_price, 2)
                 logger.info(f"Using aggressive price for market order: {aggressive_price}")
                 
