@@ -424,6 +424,32 @@ function App() {
     
     setupPriceSource()
     
+    // Listen for localStorage changes (when Settings toggle changes)
+    const handleStorageChange = () => {
+      const storedWebsocket = localStorage.getItem('websocket_enabled')
+      
+      // Check if WebSocket was just enabled
+      if (storedWebsocket === 'true') {
+        console.log('🔄 WebSocket enabled in Settings, reconnecting...')
+        // Re-run setup to connect WebSocket
+        isSettingUp = false // Reset flag to allow re-setup
+        setupPriceSource()
+      } else if (storedWebsocket === 'false') {
+        // WebSocket was disabled, close connection
+        if (wsConnection) {
+          console.log('🛑 WebSocket disabled in Settings, closing connection...')
+          wsConnection.close()
+          wsConnection = null
+        }
+      }
+    }
+    
+    // Listen for storage events (when localStorage changes in other tabs)
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also listen for custom events (for same-tab changes)
+    window.addEventListener('websocket-config-changed', handleStorageChange)
+    
     // Separate polling for askPrice from cache (ensures real-time updates)
     // BUT: Only if WebSocket is NOT active (WebSocket has priority)
     const cachePollingInterval = setInterval(async () => {
@@ -479,6 +505,8 @@ function App() {
     
     return () => {
       clearInterval(cachePollingInterval)
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('websocket-config-changed', handleStorageChange)
       isSettingUp = false // Reset flag on cleanup
       if (priceInterval) {
         clearInterval(priceInterval)
