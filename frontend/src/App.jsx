@@ -623,8 +623,8 @@ function App() {
           
           if (limitPriceNum < minPrice || limitPriceNum > maxPrice) {
             setError(
-              `Preço inválido! Deve estar entre $${minPrice.toFixed(2)} e $${maxPrice.toFixed(2)} ` +
-              `(preço atual: $${midPrice.toFixed(2)})`
+              `Preço inválido! Deve estar entre $${formatPrice(minPrice)} e $${formatPrice(maxPrice)} ` +
+              `(preço atual: $${formatPrice(midPrice)})`
             )
             setLoading(false)
             return
@@ -843,6 +843,12 @@ function App() {
                 className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white text-sm opacity-75"
               />
             </div>
+            {/* Debug: Show actual midPrice value for validation */}
+            {midPrice && (
+              <p className="text-xs text-gray-600 mt-1">
+                (Valor real para validação: {midPrice.toFixed(3)})
+              </p>
+            )}
           </div>
 
           {/* Limit Price (only for limit orders) */}
@@ -934,8 +940,8 @@ function App() {
                       
                       if (rounded < minPrice || rounded > maxPrice) {
                         setPriceError(
-                          `Preço deve estar entre ${minPrice.toFixed(3)} e ${maxPrice.toFixed(3)} ` +
-                          `(preço atual: ${midPrice.toFixed(3)})`
+                          `Preço deve estar entre ${formatPrice(minPrice)} e ${formatPrice(maxPrice)} ` +
+                          `(preço atual: ${formatPrice(midPrice)})`
                         )
                         // DON'T auto-insert suggested price - just show error
                         // User can manually correct the value
@@ -966,7 +972,7 @@ function App() {
                 Preço deve ter 2 casas decimais e estar dentro de 80% do preço de referência
                 {midPrice && (
                   <span className="block mt-1">
-                    Range válido: ${(midPrice * 0.2).toFixed(2)} - ${(midPrice * 1.8).toFixed(2)}
+                    Range válido: ${formatPrice(midPrice * 0.2)} - ${formatPrice(midPrice * 1.8)}
                   </span>
                 )}
               </p>
