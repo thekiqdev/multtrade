@@ -971,10 +971,10 @@ function App() {
                   onClick={() => {
                     if (askPrice && askPrice > 0) {
                       // Use the current askPrice (mid_price) as limit price
-                      // Format to 3 decimal places and ensure it's exactly 3 decimals
+                      // Round to 3 decimal places and format to ensure exactly 3 decimals
                       const num = parseFloat(askPrice)
                       if (!isNaN(num) && num > 0) {
-                        // Round to 3 decimal places and format
+                        // Round to 3 decimal places (ignore any extra decimals)
                         const rounded = Math.round(num * 1000) / 1000
                         const formattedPrice = rounded.toFixed(3)
                         setLimitPrice(formattedPrice)
@@ -984,9 +984,9 @@ function App() {
                   }}
                   disabled={!askPrice || askPrice <= 0}
                   className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors whitespace-nowrap flex-shrink-0"
-                  title="Usar preço atual do BTC"
+                  title="Usar preço mid atual do BTC"
                 >
-                  Usar Atual
+                  mid
                 </button>
               </div>
               {priceError && (
