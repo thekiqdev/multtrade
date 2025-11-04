@@ -971,24 +971,15 @@ function App() {
                   onClick={() => {
                     if (askPrice && askPrice > 0) {
                       // Use the current askPrice (mid_price) as limit price
-                      // Format to match the same format shown in BTC field but with 3 decimal places
+                      // Use the exact same value that's being displayed in BTC field
+                      // Round to 3 decimal places to match the format
                       const num = parseFloat(askPrice)
                       if (!isNaN(num) && num > 0) {
                         // Round to 3 decimal places (ignore any extra decimals)
+                        // This ensures the value matches what's shown in BTC field
                         const rounded = Math.round(num * 1000) / 1000
-                        // Format the same way as the placeholder: with thousand separator and 3 decimals
-                        const priceStr = rounded.toString()
-                        const parts = priceStr.split('.')
-                        const integerPart = parts[0]
-                        const decimalPart = parts[1] || '000'
-                        
-                        // Format integer with thousand separator (same as BTC field format)
-                        const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-                        // Combine with 3 decimal places
-                        const formattedPrice = `${formattedInteger}.${decimalPart.substring(0, 3).padEnd(3, '0')}`
-                        
-                        // Store as raw value (without thousand separators) for processing
-                        // But ensure it has exactly 3 decimal places
+                        // Store as raw value with exactly 3 decimal places (no thousand separators)
+                        // The formatLimitPrice function will handle the display formatting
                         const rawValue = rounded.toFixed(3)
                         setLimitPrice(rawValue)
                         setPriceError(null)
