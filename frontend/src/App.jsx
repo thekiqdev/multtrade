@@ -698,19 +698,18 @@ function App() {
     // Handle empty or just dot
     if (cleaned === '' || cleaned === '.') return cleaned
     
-    // Split by decimal point - last part is decimal, rest are thousands
-    const parts = cleaned.split('.')
+    // Find the last dot - that's the decimal separator
+    // Everything before the last dot is integer part
+    const lastDotIndex = cleaned.lastIndexOf('.')
     
-    // If there's only one part or no decimal, treat all as integer
-    if (parts.length === 1) {
-      // Format integer part with thousand separator (point)
-      const integerPart = parts[0] || '0'
-      return integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    if (lastDotIndex === -1) {
+      // No decimal point - format as integer with thousand separator
+      return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
     }
     
-    // Multiple parts: last is decimal, everything before is integer
-    const integerPart = parts.slice(0, -1).join('') || parts[0] || '0'
-    const decimalPart = parts[parts.length - 1] || ''
+    // Split: integer part (before last dot) and decimal part (after last dot)
+    const integerPart = cleaned.substring(0, lastDotIndex).replace(/\./g, '') // Remove all dots from integer part
+    const decimalPart = cleaned.substring(lastDotIndex + 1)
     
     // Format integer part with thousand separator (point)
     const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
@@ -839,19 +838,30 @@ function App() {
                   onChange={(e) => {
                     const rawValue = e.target.value
                     // Remove tudo exceto números e ponto decimal
-                    const cleanedValue = rawValue.replace(/[^0-9.]/g, '')
+                    let cleanedValue = rawValue.replace(/[^0-9.]/g, '')
                     
-                    // Prevenir múltiplos pontos decimais
-                    const parts = cleanedValue.split('.')
-                    let finalValue = parts[0]
-                    if (parts.length > 1) {
-                      // Limita a 3 casas decimais
-                      const decimalPart = parts.slice(1).join('').slice(0, 3)
-                      finalValue += '.' + decimalPart
+                    // Encontrar o último ponto (separador decimal)
+                    const lastDotIndex = cleanedValue.lastIndexOf('.')
+                    
+                    if (lastDotIndex === -1) {
+                      // Sem ponto decimal - apenas números
+                      setPriceError(null)
+                      setLimitPrice(cleanedValue)
+                      return
                     }
                     
+                    // Separar parte inteira e decimal
+                    const integerPart = cleanedValue.substring(0, lastDotIndex).replace(/\./g, '') // Remove pontos da parte inteira
+                    const decimalPart = cleanedValue.substring(lastDotIndex + 1)
+                    
+                    // Limitar a 3 casas decimais
+                    const limitedDecimal = decimalPart.slice(0, 3)
+                    
+                    // Combinar
+                    const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
+                    
                     setPriceError(null)
-                    // Armazena o valor raw (sem formatação) para processamento
+                    // Armazena o valor raw (sem formatação de milhares) para processamento
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
