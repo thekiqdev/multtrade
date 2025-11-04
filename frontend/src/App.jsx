@@ -843,12 +843,6 @@ function App() {
                 className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-white text-sm opacity-75"
               />
             </div>
-            {/* Debug: Show actual midPrice value for validation */}
-            {midPrice && (
-              <p className="text-xs text-gray-600 mt-1">
-                (Valor real para validação: {midPrice.toFixed(3)})
-              </p>
-            )}
           </div>
 
           {/* Limit Price (only for limit orders) */}
