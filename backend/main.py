@@ -1221,13 +1221,18 @@ async def create_order(order: OrderRequestModel):
                                 
                                 if market_price > 0:
                                     # Calculate aggressive price and ensure it's float
-                                    calculated_price = float(market_price) * 1.05  # 5% above to ensure execution
+                                    # Do multiplication with explicit float conversion
+                                    market_price_float = float(market_price)
+                                    calculated_price = market_price_float * 1.05  # 5% above to ensure execution
                                     aggressive_price = float(calculated_price)
+                                    # Verify it's actually a float
+                                    if not isinstance(aggressive_price, (int, float)):
+                                        raise ValueError(f"aggressive_price is not numeric: {type(aggressive_price)}")
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
                                 error_detail = str(e) if e else "Unknown error"
-                                logger.error(f"Error converting market_price: {error_detail}, type: {type(market_price)}, value: {market_price}")
+                                logger.error(f"Error converting market_price: {error_detail}, type: {type(market_price)}, value: {repr(market_price)}")
                                 raise Exception(f"Could not convert market price to float: {error_detail}")
                         else:
                             raise Exception("No market price available in cache")
@@ -1248,13 +1253,18 @@ async def create_order(order: OrderRequestModel):
                                 
                                 if market_price > 0:
                                     # Calculate aggressive price and ensure it's float
-                                    calculated_price = float(market_price) * 0.95  # 5% below to ensure execution
+                                    # Do multiplication with explicit float conversion
+                                    market_price_float = float(market_price)
+                                    calculated_price = market_price_float * 0.95  # 5% below to ensure execution
                                     aggressive_price = float(calculated_price)
+                                    # Verify it's actually a float
+                                    if not isinstance(aggressive_price, (int, float)):
+                                        raise ValueError(f"aggressive_price is not numeric: {type(aggressive_price)}")
                                 else:
                                     raise Exception("Invalid market price value (<= 0)")
                             except (ValueError, TypeError) as e:
                                 error_detail = str(e) if e else "Unknown error"
-                                logger.error(f"Error converting market_price: {error_detail}, type: {type(market_price)}, value: {market_price}")
+                                logger.error(f"Error converting market_price: {error_detail}, type: {type(market_price)}, value: {repr(market_price)}")
                                 raise Exception(f"Could not convert market price to float: {error_detail}")
                         else:
                             raise Exception("No market price available in cache")
