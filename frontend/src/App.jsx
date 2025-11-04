@@ -887,39 +887,39 @@ function App() {
                   onChange={(e) => {
                     const rawValue = e.target.value
                     
-                    // Remove formatação (separadores de milhares) - pega apenas números e ponto decimal
-                    // Primeiro remove tudo exceto números e pontos
+                    // Remove formatação - pega apenas números e ponto decimal
                     let cleanedValue = rawValue.replace(/[^0-9.]/g, '')
                     
                     // Encontrar o último ponto (separador decimal)
                     const lastDotIndex = cleanedValue.lastIndexOf('.')
                     
                     if (lastDotIndex === -1) {
-                      // Sem ponto decimal - apenas números (armazena raw, sem formatação)
-                      // Permite digitação contínua: 111 → 1111 → 11111 → 111111
+                      // Sem ponto decimal - apenas números
+                      // Permite digitação: 111 → 1111 → 11111 → 111111
+                      // Armazena raw (sem formatação)
                       setPriceError(null)
                       setLimitPrice(cleanedValue)
                       return
                     }
                     
-                    // Tem ponto decimal - separar parte inteira e decimal
+                    // Tem pelo menos um ponto
                     // O último ponto é sempre o separador decimal
-                    // Tudo antes do último ponto é parte inteira (pode ter pontos de milhares formatados)
+                    // Tudo antes do último ponto é parte inteira (pode ter pontos de milhares)
                     const integerPartRaw = cleanedValue.substring(0, lastDotIndex)
-                    const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira (separadores de milhares)
+                    const integerPart = integerPartRaw.replace(/\./g, '') // Remove TODOS os pontos da parte inteira
                     const decimalPart = cleanedValue.substring(lastDotIndex + 1)
                     
                     // Limitar a 3 casas decimais
                     const limitedDecimal = decimalPart.slice(0, 3)
                     
-                    // Combinar - mantém valor raw sem formatação de milhares
-                    // IMPORTANTE: Armazena como "95056.050" (sem pontos de milhares na parte inteira)
-                    // Exemplo: se usuário digita "95.056.050", armazena como "95056.050"
+                    // Combinar - mantém valor raw sem formatação de milhares na parte inteira
+                    // Permite digitar: 111.111, 1111.111, 11111.111
+                    // Exemplo: "111.111" → armazena "111.111"
+                    // Exemplo: "11.111.111" → armazena "11111.111" (remove separadores de milhares)
                     const finalValue = limitedDecimal ? `${integerPart}.${limitedDecimal}` : integerPart
                     
                     setPriceError(null)
-                    // Armazena o valor raw (sem formatação de milhares) para processamento
-                    // Isso permite digitação contínua sem interferência
+                    // Armazena o valor raw (sem formatação de milhares na parte inteira)
                     setLimitPrice(finalValue)
                   }}
                   onBlur={(e) => {
