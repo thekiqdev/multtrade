@@ -1274,9 +1274,11 @@ async def create_order(order: OrderRequestModel):
                             
                         if mid_price > 0:
                             if order.side.lower() == "buy":
-                                aggressive_price = float(mid_price) * 1.05
+                                calculated_price = float(mid_price) * 1.05
                             else:
-                                aggressive_price = float(mid_price) * 0.95
+                                calculated_price = float(mid_price) * 0.95
+                            # Ensure aggressive_price is actually a float
+                            aggressive_price = float(calculated_price)
                         else:
                             raise Exception("Invalid market price from API (mid_price <= 0)")
                     else:
