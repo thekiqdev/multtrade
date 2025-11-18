@@ -34,6 +34,10 @@ backend/env/
 .env.*.local
 backend/.env
 
+# Credentials
+backend/credentials.json
+credentials.json
+
 # IDE
 .vscode/
 .idea/

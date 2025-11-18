@@ -31,6 +31,80 @@ logger = logging.getLogger(__name__)
 # Criar pasta de logs se não existir
 os.makedirs('backend/logs', exist_ok=True)
 
+# Credentials file path - use absolute path based on script location
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CREDENTIALS_FILE = os.path.join(SCRIPT_DIR, 'credentials.json')
+logger.info(f"📁 Credentials file path: {CREDENTIALS_FILE}")
+
+def load_credentials() -> Dict[str, str]:
+    """Load credentials from JSON file, fallback to .env if file doesn't exist"""
+    logger.info(f"📖 Tentando carregar credenciais de: {CREDENTIALS_FILE}")
+    # Try to load from JSON file first
+    if os.path.exists(CREDENTIALS_FILE):
+        try:
+            logger.info(f"✅ Arquivo credentials.json encontrado")
+            with open(CREDENTIALS_FILE, 'r', encoding='utf-8') as f:
+                creds = json.load(f)
+                account = creds.get('account_address', '').strip().strip('"\'')
+                secret = creds.get('secret_key', '').strip().strip('"\'')
+                logger.info(f"✅ Credenciais carregadas do JSON: Account={account[:10] if account else 'None'}..., Secret={bool(secret)}")
+                return {
+                    'account_address': account,
+                    'secret_key': secret
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao ler credentials.json: {e}. Tentando .env...")
+            import traceback
+            logger.warning(traceback.format_exc())
+    else:
+        logger.info(f"ℹ️ Arquivo credentials.json não encontrado, usando .env como fallback")
+    
+    # Fallback to .env
+    load_dotenv()
+    account = os.getenv("ACCOUNT_ADDRESS", "").strip().strip('"\'')
+    secret = os.getenv("SECRET_KEY", "").strip().strip('"\'')
+    logger.info(f"📖 Credenciais do .env: Account={account[:10] if account else 'None'}..., Secret={bool(secret)}")
+    return {
+        'account_address': account,
+        'secret_key': secret
+    }
+
+def save_credentials(account_address: str, secret_key: str) -> bool:
+    """Save credentials to JSON file"""
+    try:
+        logger.info(f"💾 Tentando salvar credenciais em: {CREDENTIALS_FILE}")
+        creds = {
+            'account_address': account_address.strip().strip('"\''),
+            'secret_key': secret_key.strip().strip('"\'')
+        }
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(CREDENTIALS_FILE), exist_ok=True)
+        
+        with open(CREDENTIALS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(creds, f, indent=2)
+        
+        # Set restrictive permissions (Unix-like systems)
+        if os.name != 'nt':  # Not Windows
+            os.chmod(CREDENTIALS_FILE, 0o600)
+        
+        # Verify file was created
+        if os.path.exists(CREDENTIALS_FILE):
+            logger.info(f"✅ Credenciais salvas com sucesso em: {CREDENTIALS_FILE}")
+            # Verify content
+            with open(CREDENTIALS_FILE, 'r', encoding='utf-8') as f:
+                saved_creds = json.load(f)
+                logger.info(f"✅ Verificação: Account Address salvo: {saved_creds.get('account_address', '')[:10]}...")
+                logger.info(f"✅ Verificação: Secret Key salvo: {bool(saved_creds.get('secret_key', ''))}")
+            return True
+        else:
+            logger.error(f"❌ Arquivo não foi criado: {CREDENTIALS_FILE}")
+            return False
+    except Exception as e:
+        logger.error(f"❌ Erro ao salvar credentials.json: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
 load_dotenv()
 
 app = FastAPI()
@@ -50,9 +124,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load environment variables (strip whitespace)
-ACCOUNT_ADDRESS = os.getenv("ACCOUNT_ADDRESS", "").strip().strip('"\'')
-SECRET_KEY = os.getenv("SECRET_KEY", "").strip().strip('"\'')
+# Load credentials from JSON file (or fallback to .env)
+credentials = load_credentials()
+ACCOUNT_ADDRESS = credentials.get('account_address', '')
+SECRET_KEY = credentials.get('secret_key', '')
 BASE_URL = constants.TESTNET_API_URL
 
 # Initialize info client (can work without credentials for market data)
@@ -93,10 +168,10 @@ price_cache: Dict[str, Dict] = {
 def initialize_exchange():
     """Initialize or reinitialize exchange client - useful for hot reload"""
     global wallet, exchange, ACCOUNT_ADDRESS, SECRET_KEY
-    # Reload env vars in case they changed
-    load_dotenv(override=True)
-    ACCOUNT_ADDRESS = os.getenv("ACCOUNT_ADDRESS", "").strip()
-    SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+    # Reload credentials from JSON file (or fallback to .env)
+    credentials = load_credentials()
+    ACCOUNT_ADDRESS = credentials.get('account_address', '')
+    SECRET_KEY = credentials.get('secret_key', '')
     
     # Remove espaços extras e quebras de linha
     if ACCOUNT_ADDRESS:
@@ -144,7 +219,8 @@ def initialize_exchange():
             return False
     else:
         logger.error("=" * 60)
-        logger.error("❌ ACCOUNT_ADDRESS ou SECRET_KEY nao foram encontradas no .env")
+        logger.error("❌ ACCOUNT_ADDRESS ou SECRET_KEY nao foram encontradas")
+        logger.error("   Configure as credenciais no menu de Configurações")
         logger.error("=" * 60)
         return False
 
@@ -172,10 +248,10 @@ def read_root():
 @app.get("/api/status")
 async def get_status():
     """Retorna o status da aplicação e credenciais"""
-    # Reload env to get latest values
-    load_dotenv(override=True)
-    current_account = os.getenv("ACCOUNT_ADDRESS", "").strip().strip('"\'')
-    current_secret = os.getenv("SECRET_KEY", "").strip().strip('"\'')
+    # Reload credentials from JSON file (or fallback to .env)
+    credentials = load_credentials()
+    current_account = credentials.get('account_address', '')
+    current_secret = credentials.get('secret_key', '')
     
     status = {
         "backend_running": True,
@@ -196,14 +272,14 @@ async def get_status():
     
     # Detect issues
     if not current_account:
-        status["issues"].append("ACCOUNT_ADDRESS não encontrado no .env")
+        status["issues"].append("ACCOUNT_ADDRESS não encontrado. Configure no menu de Configurações")
     elif current_account == "0xSEU_ENDERECO":
         status["issues"].append("ACCOUNT_ADDRESS ainda tem valor de exemplo")
     elif len(current_account) != 42:
         status["issues"].append(f"ACCOUNT_ADDRESS deve ter 42 caracteres (tem {len(current_account)})")
     
     if not current_secret:
-        status["issues"].append("SECRET_KEY não encontrado no .env")
+        status["issues"].append("SECRET_KEY não encontrado. Configure no menu de Configurações")
     elif current_secret == "SUA_CHAVE_PRIVADA":
         status["issues"].append("SECRET_KEY ainda tem valor de exemplo")
     elif len(current_secret) != 66:
@@ -215,6 +291,101 @@ async def get_status():
         status["issues"].append("Exchange client não foi inicializado")
     
     return status
+
+
+class CredentialsModel(BaseModel):
+    account_address: str
+    secret_key: str
+
+
+@app.get("/api/credentials")
+async def get_credentials():
+    """Retorna as credenciais (sem mostrar a chave completa por segurança)"""
+    logger.info("📖 GET /api/credentials - Carregando credenciais...")
+    credentials = load_credentials()
+    account = credentials.get('account_address', '')
+    secret = credentials.get('secret_key', '')
+    
+    logger.info(f"📖 Credenciais carregadas: Account={account[:10] if account else 'None'}..., Secret={bool(secret)}")
+    
+    return {
+        "account_address": account,
+        "secret_key_preview": f"{secret[:10]}...{secret[-4:]}" if secret and len(secret) > 14 else "",
+        "account_address_present": bool(account),
+        "secret_key_present": bool(secret),
+        "account_address_length": len(account) if account else 0,
+        "secret_key_length": len(secret) if secret else 0,
+        "credentials_file_path": CREDENTIALS_FILE,
+        "credentials_file_exists": os.path.exists(CREDENTIALS_FILE)
+    }
+
+
+@app.post("/api/credentials")
+async def save_credentials_endpoint(creds: CredentialsModel):
+    """Salva as credenciais e reinicializa o exchange client"""
+    global wallet, exchange, ACCOUNT_ADDRESS, SECRET_KEY
+    
+    logger.info("=" * 60)
+    logger.info("🔐 Recebendo requisição para salvar credenciais")
+    logger.info(f"   Account Address recebido: {creds.account_address[:10] if creds.account_address else 'None'}...")
+    logger.info(f"   Secret Key recebido: {bool(creds.secret_key)}")
+    
+    # Validate format
+    account = creds.account_address.strip().strip('"\'')
+    secret = creds.secret_key.strip().strip('"\'')
+    
+    # Basic validation
+    if not account:
+        logger.error("❌ ACCOUNT_ADDRESS está vazio")
+        raise HTTPException(status_code=400, detail="ACCOUNT_ADDRESS não pode estar vazio")
+    if not secret:
+        logger.error("❌ SECRET_KEY está vazio")
+        raise HTTPException(status_code=400, detail="SECRET_KEY não pode estar vazio")
+    
+    if account == "0xSEU_ENDERECO" or secret == "SUA_CHAVE_PRIVADA":
+        logger.error("❌ Credenciais são valores de exemplo")
+        raise HTTPException(status_code=400, detail="Por favor, use credenciais reais, não valores de exemplo")
+    
+    if len(account) != 42:
+        logger.error(f"❌ ACCOUNT_ADDRESS tem tamanho inválido: {len(account)} (esperado: 42)")
+        raise HTTPException(status_code=400, detail=f"ACCOUNT_ADDRESS deve ter 42 caracteres (tem {len(account)})")
+    
+    if len(secret) != 66:
+        logger.error(f"❌ SECRET_KEY tem tamanho inválido: {len(secret)} (esperado: 66)")
+        raise HTTPException(status_code=400, detail=f"SECRET_KEY deve ter 66 caracteres (0x + 64 hex). Você tem {len(secret)} caracteres")
+    
+    logger.info("✅ Validação passou, salvando credenciais...")
+    
+    # Save to file
+    if not save_credentials(account, secret):
+        logger.error("❌ Falha ao salvar credenciais no arquivo")
+        raise HTTPException(status_code=500, detail="Erro ao salvar credenciais. Verifique os logs do servidor.")
+    
+    logger.info("✅ Credenciais salvas no arquivo, atualizando variáveis globais...")
+    
+    # Update global variables
+    ACCOUNT_ADDRESS = account
+    SECRET_KEY = secret
+    
+    logger.info("🔄 Reinicializando exchange client...")
+    
+    # Reinitialize exchange client
+    success = initialize_exchange()
+    
+    logger.info("=" * 60)
+    
+    if success:
+        return {
+            "success": True,
+            "message": "Credenciais salvas e exchange client reinicializado com sucesso",
+            "account_address_preview": f"{account[:10]}...{account[-4:]}"
+        }
+    else:
+        return {
+            "success": False,
+            "message": "Credenciais salvas, mas falha ao inicializar exchange client. Verifique os logs.",
+            "account_address_preview": f"{account[:10]}...{account[-4:]}"
+        }
 
 
 @app.get("/api/config")

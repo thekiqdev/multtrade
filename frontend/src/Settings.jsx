@@ -11,11 +11,102 @@ function Settings() {
   const [restStatus, setRestStatus] = useState(true)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
+  const [accountAddress, setAccountAddress] = useState('')
+  const [secretKey, setSecretKey] = useState('')
+  const [credentialsLoading, setCredentialsLoading] = useState(false)
+  const [showSecretKey, setShowSecretKey] = useState(false)
 
   useEffect(() => {
     // Load current config only once on mount
     loadConfig()
+    loadCredentials()
   }, []) // Empty dependency array - only run once on mount
+
+  const loadCredentials = async () => {
+    try {
+      console.log('📖 Carregando credenciais do backend...')
+      const response = await axios.get(getApiUrl('/api/credentials'))
+      console.log('✅ Credenciais carregadas:', {
+        account_address: response.data.account_address?.substring(0, 10) + '...',
+        account_present: response.data.account_address_present,
+        secret_present: response.data.secret_key_present,
+        secret_preview: response.data.secret_key_preview,
+        file_path: response.data.credentials_file_path,
+        file_exists: response.data.credentials_file_exists
+      })
+      setAccountAddress(response.data.account_address || '')
+      // Always clear secret key field for security (never load it from backend)
+      setSecretKey('')
+    } catch (err) {
+      console.error('❌ Erro ao carregar credenciais:', err)
+    }
+  }
+
+  const handleSaveCredentials = async () => {
+    setCredentialsLoading(true)
+    setMessage(null)
+    
+    const account = accountAddress.trim()
+    const secret = secretKey.trim()
+    
+    // Basic validation
+    if (!account) {
+      setMessage({
+        type: 'error',
+        text: 'Account Address não pode estar vazio'
+      })
+      setCredentialsLoading(false)
+      return
+    }
+    
+    if (!secret) {
+      setMessage({
+        type: 'error',
+        text: 'Secret Key não pode estar vazio'
+      })
+      setCredentialsLoading(false)
+      return
+    }
+    
+    console.log('💾 Enviando credenciais para o backend...')
+    console.log('   Account Address:', account.substring(0, 10) + '...')
+    console.log('   Secret Key presente:', !!secret)
+    
+    try {
+      const response = await axios.post(getApiUrl('/api/credentials'), {
+        account_address: account,
+        secret_key: secret
+      })
+      
+      console.log('✅ Resposta do backend:', response.data)
+      
+      if (response.data.success) {
+        setMessage({
+          type: 'success',
+          text: response.data.message || 'Credenciais salvas com sucesso!'
+        })
+        setSecretKey('') // Clear secret key after saving
+        // Reload credentials to verify they were saved
+        setTimeout(async () => {
+          await loadCredentials()
+        }, 500)
+      } else {
+        setMessage({
+          type: 'error',
+          text: response.data.message || 'Erro ao salvar credenciais'
+        })
+      }
+    } catch (err) {
+      console.error('❌ Erro ao salvar credenciais:', err)
+      console.error('   Response:', err.response?.data)
+      setMessage({
+        type: 'error',
+        text: err.response?.data?.detail || err.message || 'Erro ao salvar credenciais'
+      })
+    } finally {
+      setCredentialsLoading(false)
+    }
+  }
 
   // Separate effect for polling WebSocket status and REST prices
   useEffect(() => {
@@ -217,6 +308,73 @@ function Settings() {
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
       <div className="bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center">⚙️ Configurações</h1>
+
+        {/* Credentials Section */}
+        <div className="mb-6">
+          <label className="block text-sm text-gray-400 mb-3">🔐 Credenciais Hyperliquid</label>
+          
+          <div className="space-y-4">
+            {/* Account Address */}
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Account Address</label>
+              <input
+                type="text"
+                value={accountAddress}
+                onChange={(e) => setAccountAddress(e.target.value)}
+                placeholder="0x..."
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* Secret Key */}
+            <div>
+              <label className="block text-sm text-gray-300 mb-2">Secret Key</label>
+              <div className="relative">
+                <input
+                  type={showSecretKey ? "text" : "password"}
+                  value={secretKey}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    // Only allow valid hex characters (0-9, a-f, A-F) and 0x prefix
+                    if (value === '' || /^0x[0-9a-fA-F]*$/.test(value)) {
+                      setSecretKey(value)
+                    }
+                  }}
+                  placeholder="0x..."
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 pr-12"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSecretKey(!showSecretKey)}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 text-sm"
+                >
+                  {showSecretKey ? '🙈' : '👁️'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                ⚠️ Sua chave privada será armazenada localmente no servidor
+              </p>
+              {secretKey && secretKey.length > 0 && secretKey.length !== 66 && (
+                <p className="text-xs text-yellow-500 mt-1">
+                  ⚠️ Secret Key deve ter 66 caracteres (0x + 64 hex). Atual: {secretKey.length}
+                </p>
+              )}
+            </div>
+
+            {/* Save Credentials Button */}
+            <button
+              onClick={handleSaveCredentials}
+              disabled={credentialsLoading || !accountAddress.trim() || !secretKey.trim()}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {credentialsLoading ? 'Salvando...' : '💾 Salvar Credenciais'}
+            </button>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-700 my-6"></div>
 
         {/* Price Source Selection */}
         <div className="mb-6">
